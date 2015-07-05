@@ -39,6 +39,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		// Needed for the initialization of the partial edit page.
 		$JSINFO['fastwiki_locktime'] = $conf['locktime'] - 60;
 		$JSINFO['fastwiki_usedraft'] = $conf['usedraft'] ? $conf['usedraft'] : '0';
+		$JSINFO['fastwiki'] = array('secedit'=>$this->getConf('secedit'), 'preview'=>$this->getConf('preview'), 'fastpages'=>$this->getConf('fastpages'));
 
 		if ($INPUT->str('partial') == '1') {
 			$this->m_inPartial = true;

@@ -185,13 +185,15 @@ var plugin_fastwiki = (function($) {
 			}
 		}
 
-		// Inline section edit
-		$('.btn_secedit input[type=submit]').each(function(idx, elt) {
-			$(elt).click(function(e) {
-				e.preventDefault();
-				load('edit', $(this).parents('form'))
+		if (JSINFO.fastwiki.secedit) {
+			// Inline section edit
+			$('.btn_secedit input[type=submit]').each(function(idx, elt) {
+				$(elt).click(function(e) {
+					e.preventDefault();
+					load('edit', $(this).parents('form'))
+				});
 			});
-		});
+		}
 
 		// Leaving imgdetail with ajax is just too complicated to support.
 		if (document.location.href.indexOf("detail.php") >= 0)
@@ -214,7 +216,8 @@ var plugin_fastwiki = (function($) {
 		if (m_tpl.init)
 			m_tpl.init();
 
-		fixActionLinks(document.body);
+		if (JSINFO.fastwiki.fastpages)
+			fixActionLinks(document.body);
 	});
 
 
@@ -383,10 +386,18 @@ var plugin_fastwiki = (function($) {
 		window.onunload = deleteDraft;
 
 		jQuery('#edbtn__preview').click(function(e) {
-			e.preventDefault();
-			_preview(m_pageObjs.sectionForm);
-			m_hasDraft = true;
-			dw_locktimer.reset();
+			if (JSINFO.fastwiki.preview) {
+				e.preventDefault();
+				_preview(m_pageObjs.sectionForm);
+				m_hasDraft = true;
+				dw_locktimer.reset();
+			}
+			else {
+				// Original behavior from edit.js.
+				window.onbeforeunload = '';
+				textChanged = false;
+				window.keepDraft = true;
+			}
 		});
 
 		jQuery('#edit__summary').on("change keyup", summaryCheck);
