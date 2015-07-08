@@ -18,7 +18,7 @@ var plugin_fastwiki = (function($) {
 		var m_showRow, m_editRow;
 
 		var m_utils = {
-			makeShowLink(url) {
+			makeShowLink: function(url) {
 				url = url.replace(/\?do=.*$/, '');
 				return '<a href="' + url + '" class="action show" accesskey="v" rel="nofollow" title="' + JSINFO.fastwiki.text_btn_show + ' [V]"><span>' + JSINFO.fastwiki.text_btn_show + '</span></a>';
 			},
@@ -59,7 +59,7 @@ var plugin_fastwiki = (function($) {
 		return {
 			// dokuwiki, starter, greensteel
 			dokuwiki: {
-				isActive() {
+				isActive: function() {
 					return $('#dokuwiki__pagetools').length > 0;
 				},
 				init: function() {
@@ -77,7 +77,7 @@ var plugin_fastwiki = (function($) {
 				}
 			},
 			starterbootstrap: {
-				isActive() {
+				isActive: function() {
 					return $('ul.nav.navbar-nav').length > 0;
 				},
 				init: function() {
@@ -95,7 +95,7 @@ var plugin_fastwiki = (function($) {
 				}
 			},
 			arctic: {
-				isActive() {
+				isActive: function() {
 					return JSINFO.fastwiki.templatename == 'arctic';
 				},
 				init: function() {
@@ -129,7 +129,7 @@ var plugin_fastwiki = (function($) {
 			},
 			// scanlines
 			scanlines: {
-				isActive() {
+				isActive: function() {
 					return $('.stylehead .bar_top .bar_top_content').length > 0;
 				},
 				family: 'scanlines',
@@ -160,7 +160,7 @@ var plugin_fastwiki = (function($) {
 			},
 			// vector, prsnl10
 			fully_supported: {
-				isActive() {return true;}
+				isActive: function() {return true;}
 			}
 		};
 	})();
@@ -543,7 +543,7 @@ var plugin_fastwiki = (function($) {
 			setTimeout(function() {
 				if (action == 'edit' || action == 'draft') {
 					if (document.body.scrollTop > 0)
-						$('html,body').animate({scrollTop: Math.max(0, body.offset().top-20)+'px'}, 300);
+						$('html,body').animate({scrollTop: Math.max(0, Math.floor(body.offset().top)-20)+'px'}, 300);
 				}
 				else
 					$('html,body').animate({scrollTop: 0}, 300);
