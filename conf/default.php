@@ -5,3 +5,4 @@ if (!defined("DOKU_INC"))
 $conf["secedit"] = 1;
 $conf["preview"] = 1;
 $conf["fastpages"] = 1;
+//$conf["fastns"] = 0;

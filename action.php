@@ -34,23 +34,32 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
 	public function handle_start(Doku_Event &$event, $param) {
-		global $conf, $INPUT, $JSINFO;
-
-		// Needed for the initialization of the partial edit page.
-		$JSINFO['fastwiki_locktime'] = $conf['locktime'] - 60;
-		$JSINFO['fastwiki_usedraft'] = $conf['usedraft'] ? $conf['usedraft'] : '0';
-		$JSINFO['fastwiki'] = array('secedit'=>$this->getConf('secedit'), 'preview'=>$this->getConf('preview'), 'fastpages'=>$this->getConf('fastpages'));
+		global $conf, $INPUT;
 
 		if ($INPUT->str('partial') == '1') {
 			$this->m_inPartial = true;
 			// Because so much is declared in global scope in doku.php, it's impossible to call tpl_content() without
-			// rendering the whole template. This hack loads a blank template, so we only render what we want.
+			// rendering the whole template. This hack loads a blank template, so we only render the page's inner content.
 			$conf['template'] = '../plugins/fastwiki/tplblank';
 		}
 		else {
-			global $lang;
-			$JSINFO['fastwiki_text_btn_show'] = $lang['btn_show'];
-			$JSINFO['fastwiki_templatename'] = $conf['template'];
+			global $lang, $JSINFO;
+
+			$JSINFO['fastwiki'] = array(
+				// Configuration
+				'secedit'       => $this->getConf('secedit'),
+				'preview'       => $this->getConf('preview'),
+				'fastpages'     => $this->getConf('fastpages'),
+				//'fastns'      => $this->getConf('fastns'),
+
+				// Needed for the initialization of the partial edit page.
+				'locktime'      => $conf['locktime'] - 60,
+				'usedraft'      => $conf['usedraft'] ? $conf['usedraft'] : '0',
+
+				// Miscellaneous
+				'text_btn_show' => $lang['btn_show'],
+				'templatename'  => $conf['template']
+			);
 		}
 	}
 

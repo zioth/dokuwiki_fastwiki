@@ -7,6 +7,7 @@ var plugin_fastwiki = (function($) {
 	var m_pageObjs = {}; // Edit objects
 	var m_content;
 	var m_initialId;
+	var m_curBaseUrl = document.location.pathname;
 
 	/**
 	* Map of identifying selector to special cases. Use selectors instead of template names because there are families of templates.
@@ -19,7 +20,7 @@ var plugin_fastwiki = (function($) {
 		var m_utils = {
 			makeShowLink(url) {
 				url = url.replace(/\?do=.*$/, '');
-				return '<a href="' + url + '" class="action show" accesskey="v" rel="nofollow" title="' + JSINFO.fastwiki_text_btn_show + ' [V]"><span>' + JSINFO.fastwiki_text_btn_show + '</span></a>';
+				return '<a href="' + url + '" class="action show" accesskey="v" rel="nofollow" title="' + JSINFO.fastwiki.text_btn_show + ' [V]"><span>' + JSINFO.fastwiki.text_btn_show + '</span></a>';
 			},
 
 			// Add a "show" link for templates which have a <ul> list of action links.
@@ -41,7 +42,7 @@ var plugin_fastwiki = (function($) {
 				var showBtn = $('.button.btn_show', showParent);
 				if (showBtn.length == 0) {
 					var url = $('form.button', allButtons)[0].action;
-					showBtnHtml = '<form class="button btn_show" method="get" action="' + url + '"><div class="no"><input type="hidden" name="do" value=""><input type="submit" value="' + JSINFO.fastwiki_text_btn_show + '" class="button" accesskey="v" title="' + JSINFO.fastwiki_text_btn_show + ' [V]"></div></form>';
+					showBtnHtml = '<form class="button btn_show" method="get" action="' + url + '"><div class="no"><input type="hidden" name="do" value=""><input type="submit" value="' + JSINFO.fastwiki.text_btn_show + '" class="button" accesskey="v" title="' + JSINFO.fastwiki.text_btn_show + ' [V]"></div></form>';
 					showParent.each(function(idx, elt) {
 						var newBtn = $(showBtnHtml);
 						showBtn = showBtn.add(newBtn);
@@ -95,7 +96,7 @@ var plugin_fastwiki = (function($) {
 			},
 			arctic: {
 				isActive() {
-					return JSINFO.fastwiki_templatename == 'arctic';
+					return JSINFO.fastwiki.templatename == 'arctic';
 				},
 				init: function() {
 					var buttonBars = $('#bar__bottom, #bar__top');
@@ -354,7 +355,7 @@ var plugin_fastwiki = (function($) {
 	*/
 	function _initEdit() {
 		dw_editor.init();
-		dw_locktimer.init(JSINFO.fastwiki_locktime, JSINFO.fastwiki_usedraft);
+		dw_locktimer.init(JSINFO.fastwiki.locktime, JSINFO.fastwiki.usedraft);
 
 		// From edit.js
 		var $editform = jQuery('#dw__editform');
@@ -518,7 +519,6 @@ var plugin_fastwiki = (function($) {
 		params['do'] = action;
 
 		_sendPartial(params, _getVisibleContent(), function(data) {
-			_setBodyClass(action, params.target);
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
 
@@ -542,14 +542,14 @@ var plugin_fastwiki = (function($) {
 
 			setTimeout(function() {
 				if (action == 'edit' || action == 'draft') {
-					//TODO: It won't scroll to the right place. It's always about 20px off, even if I add pixels.
 					if (document.body.scrollTop > 0)
-						$('html,body').animate({scrollTop: body.offset().top+'px'}, 300);
+						$('html,body').animate({scrollTop: Math.max(0, body.offset().top-20)+'px'}, 300);
 				}
 				else
 					$('html,body').animate({scrollTop: 0}, 300);
 			}, 1);
 
+			_setBodyClass(action, params.target);
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
 		}, 'text');
@@ -574,7 +574,7 @@ var plugin_fastwiki = (function($) {
 
 		params.partial = 1;
 
-		jQuery.post(document.location.href, params, function(data) {
+		jQuery.post(m_curBaseUrl, params, function(data) {
 			callback(data);
 			// Remove all loading spinners, in case a bug let some extras slip in.
 			$('.partialsLoading').remove();
@@ -620,7 +620,6 @@ var plugin_fastwiki = (function($) {
 
 		// If we're back to the original mode, just clean up and quit.
 		if (page == m_origViewMode) {
-			_setBodyClass(m_origViewMode);
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
 
@@ -631,6 +630,7 @@ var plugin_fastwiki = (function($) {
 				}, 1);
 			}
 
+			_setBodyClass(m_origViewMode);
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
 			return;
