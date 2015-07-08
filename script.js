@@ -347,6 +347,22 @@ var plugin_fastwiki = (function($) {
 
 
 	/**
+	* Switch focus to the editor.
+	*/
+	function _focusEdit() {
+		var $edit_text = $('#wiki__text');
+		if ($edit_text.length > 0 && !$edit_text.attr('readOnly')) {
+			// set focus and place cursor at the start
+			var sel = DWgetSelection($edit_text[0]);
+			sel.start = 0;
+			sel.end = 0;
+			DWsetSelection(sel);
+			$edit_text.focus();
+		}
+	}
+
+
+	/**
 	* Initialize a page edit. This must be called every time the editor is loaded.
 	* Most of this function was derived from core DokuWiki scripts, because Doku doesn't have init functions -- it does
 	* all initialization in global jQuery DOMConentReady scope.
@@ -363,16 +379,6 @@ var plugin_fastwiki = (function($) {
 			return;
 
 		var $edit_text = $('#wiki__text');
-		if ($edit_text.length > 0) {
-			if (!$edit_text.attr('readOnly')) {
-				// set focus and place cursor at the start
-				var sel = DWgetSelection($edit_text[0]);
-				sel.start = 0;
-				sel.end = 0;
-				DWsetSelection(sel);
-				$edit_text.focus();
-			}
-		}
 
 		$editform.on("change keydown", function(e) {
 			window.textChanged = true;
@@ -542,6 +548,9 @@ var plugin_fastwiki = (function($) {
 
 			setTimeout(function() {
 				if (action == 'edit' || action == 'draft') {
+					// Focusing the editor causes the browser to scroll, so wait until it's likely to be in view (after the page is rearranged) before calling this.
+					_focusEdit();
+
 					if (document.body.scrollTop > 0)
 						$('html,body').animate({scrollTop: Math.max(0, Math.floor(body.offset().top)-20)+'px'}, 300);
 				}
@@ -686,6 +695,7 @@ var plugin_fastwiki = (function($) {
 					m_pageObjs.showOnSwitch = sectionParts;
 					m_pageObjs.showOnSwitch.hide();
 					_initEdit();
+					_focusEdit();
 				}, insertLoc);
 			}
 			else {
