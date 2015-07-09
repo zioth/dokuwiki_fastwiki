@@ -94,11 +94,17 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		global $ACT, $INPUT;
 
 		// Some partials only want an error message.
-		if (!$this->m_no_content)
+		if (!$this->m_no_content) {
+			// Section save. This won't work, unless I return new "range" inputs for all sections.
+//			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
+//			if ($secedit)
+//				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
+//			else
 			tpl_content();
 
-		if ($ACT == 'save' || $ACT == 'admin' || $ACT == 'show')
-			tpl_toc();
+			if ($ACT == 'show')
+				tpl_toc();
+		}
 
 		// Output error messages.
 		html_msgarea();

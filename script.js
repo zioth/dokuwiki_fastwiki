@@ -186,17 +186,6 @@ var plugin_fastwiki = (function($) {
 			}
 		}
 
-		if (JSINFO.fastwiki.secedit) {
-			// Inline section edit
-			$('.btn_secedit input[type=submit]').each(function(idx, elt) {
-				$(elt).click(function(e) {
-					e.preventDefault();
-					var form = $(this).parents('form')
-					load('edit', form, _formToObj(form))
-				});
-			});
-		}
-
 		// Leaving imgdetail with ajax is just too complicated to support.
 		if (document.location.href.indexOf("detail.php") >= 0)
 			m_viewMode = 'unsupported';
@@ -236,7 +225,7 @@ var plugin_fastwiki = (function($) {
 		// login, register and resendpwd: Templates, plugins or future versions of dokuwiki might make them https.
 		// admin: Admin can change things outside the main content area.
 		// conflict, denied and locked: I don't know what they do.
-		var supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1};
+		var supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 		var formActions = {search: 1};
 		var supportedFields = {'do':1, rev:1, id:1};
 
@@ -281,6 +270,15 @@ var plugin_fastwiki = (function($) {
 			$('a[href $= "id=' + JSINFO.id + '"], a[href $= "doku.php/' + JSINFO.id.replace(/:/g, '/') + '"], a[href = "/' + JSINFO.id.replace(/:/g, '/') + '"]', elt).click(function(e) {
 				e.preventDefault();
 				load('show');
+			});
+		}
+
+		// Inline section edit
+		if (JSINFO.fastwiki.secedit) {
+			$('.btn_secedit input[type=submit]', elt).click(function(e) {
+				e.preventDefault();
+				var form = $(this).parents('form')
+				load('edit', form, _formToObj(form))
 			});
 		}
 	}
@@ -549,6 +547,11 @@ var plugin_fastwiki = (function($) {
 				subscribeAction(_urlToObj(this.href));
 			});
 		},
+		index: function(params, extraData) {
+			// Global init from index.js
+			dw_index.$obj = $('#index__tree');
+			dw_index.init();
+		},
 		edit: function(params, extraData) {
 			var draft = params['do'] == 'draft';
 			if (m_hasDraft === true)
@@ -625,7 +628,13 @@ var plugin_fastwiki = (function($) {
 			}
 			else {
 				$('.content_initial').html($('.content_partial').html());
+				// The html() transfer above lost dynamic events. Reset.
+				fixActionLinks($('.content_initial'));
+
 				load('show');
+				// These two lines are from dw_page.init()
+				dw_page.sectionHighlight();
+				jQuery('a.fn_top').mouseover(dw_page.footnoteDisplay);
 			}
 		}
 	};
@@ -655,11 +664,11 @@ var plugin_fastwiki = (function($) {
 				var body = $('<div class="content_partial"></div>').addClass(initial[0].className.replace(/content_initial/, '')).attr('id', m_initialId).append(data);
 				initial.attr('id', '').after(body);
 			}
-			fixActionLinks($('.content_partial'));
 
 			// If a new TOC came back, update existing TOCs.
 			var newToc = $('.content_partial #dw__toc');
-			if (newToc.length > 0) {
+			var hasNewToc = newToc.length > 0;
+			if (hasNewToc) {
 				// #dw_toc_head is for the zioth template. Hey, it's my template. I get to special-case it. :)
 				$('#dw__toc, #dw_toc_head').each(function(idx, elt) {
 					elt = $(elt);
@@ -677,6 +686,13 @@ var plugin_fastwiki = (function($) {
 			if (m_actionEffects[action])
 				m_actionEffects[action](params, extraData||{});
 
+			// Initialize TOC. Must happen after m_actionEffects, which can overwrite the HTML and lose events.
+			if (hasNewToc)
+				dw_page.makeToggle('#dw__toc h3','#dw__toc > div');
+
+			// Update links in the content area.
+			fixActionLinks($('.content_partial'));
+
 			setTimeout(function() {
 				if (action == 'edit' || action == 'draft') {
 					// Focusing the editor causes the browser to scroll, so wait until it's likely to be in view (after the page is rearranged) before calling this.
@@ -691,6 +707,11 @@ var plugin_fastwiki = (function($) {
 
 			// It's important to use m_viewMode here instead of action, because the callbacks can change the action.
 			_setBodyClass(m_viewMode, m_pageObjs.sectionForm ? "section" : null);
+
+			// Update doku state.
+			if (!insertLoc)
+				dw_behaviour.init();
+
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
 		}, 'text');
