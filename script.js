@@ -191,7 +191,8 @@ var plugin_fastwiki = (function($) {
 			$('.btn_secedit input[type=submit]').each(function(idx, elt) {
 				$(elt).click(function(e) {
 					e.preventDefault();
-					load('edit', $(this).parents('form'))
+					var form = $(this).parents('form')
+					load('edit', form, _formToObj(form))
 				});
 			});
 		}
@@ -233,7 +234,7 @@ var plugin_fastwiki = (function($) {
 
 		// Unsupported actions, and reason for lack of support:
 		// login, register and resendpwd: Templates, plugins or future versions of dokuwiki might make them https.
-		// admin: It's too hard -- too many modes, too many buttons to hook, and a custom TOC.
+		// admin: Admin can change things outside the main content area.
 		// conflict, denied and locked: I don't know what they do.
 		var supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1};
 		var formActions = {search: 1};
@@ -374,7 +375,7 @@ var plugin_fastwiki = (function($) {
 		dw_locktimer.init(JSINFO.fastwiki.locktime, JSINFO.fastwiki.usedraft);
 
 		// From edit.js
-		var $editform = jQuery('#dw__editform');
+		var $editform = $('#dw__editform');
 		if ($editform.length == 0)
 			return;
 
@@ -392,7 +393,7 @@ var plugin_fastwiki = (function($) {
 		};
 		window.onunload = deleteDraft;
 
-		jQuery('#edbtn__preview').click(function(e) {
+		$('#edbtn__preview').click(function(e) {
 			if (JSINFO.fastwiki.preview) {
 				e.preventDefault();
 				_preview(m_pageObjs.sectionForm);
@@ -407,18 +408,23 @@ var plugin_fastwiki = (function($) {
 			}
 		});
 
-		jQuery('#edit__summary').on("change keyup", summaryCheck);
+		$('#edit__summary').on("change keyup", summaryCheck);
 		if (textChanged)
 			summaryCheck();
 
 		// From toolbar.js
 		initToolbar('tool__bar','wiki__text',toolbar);
-		jQuery('#tool__bar').attr('role', 'toolbar');
+		$('#tool__bar').attr('role', 'toolbar');
 
 		// reset change memory var on submit
-		jQuery('#edbtn__save').click(function() {
-			window.onbeforeunload = '';
+		$('#edbtn__save').click(function(e) {
 			textChanged = false;
+
+			if (JSINFO.fastwiki.save && m_origViewMode == 'show') {
+				e.preventDefault();
+				load('save', null, _formToObj($('#dw__editform')));
+			}
+			window.onbeforeunload = '';
 			dw_locktimer.clear();
 		});
 
@@ -429,7 +435,7 @@ var plugin_fastwiki = (function($) {
 			load('show');
 
 			if (!window.keepDraft) {
-				// remove a possibly saved draft using ajax
+				// Silently remove a possibly saved draft using ajax.
 				jQuery.post(DOKU_BASE + 'lib/exe/ajax.php', {
 					call: 'draftdel',
 					id: id,
@@ -516,12 +522,122 @@ var plugin_fastwiki = (function($) {
 
 
 	/**
+	* Side effects of performing various actions.
+	* @private
+	*/
+	var m_actionEffects = {
+		subscribe: function(params, extraData) {
+			// Subscribe actions are a special case. Rather than replace the content, they add a success or error message to the top.
+			function subscribeAction(sparams) {
+				_sendPartial(sparams, _getVisibleContent(), function(data) {
+					// data is just a success or error message.
+					load(m_origViewMode);
+
+					var body = $('<div class="message_partial"></div>').append(data);
+					$('.content_initial').before(body);
+				}, 'text');
+			}
+
+			var form = $('#subscribe__form');
+			$('input[name="do[subscribe]"]', form).click(function(e) {
+				e.preventDefault();
+				subscribeAction(_formToObj(form));
+			});
+
+			$('.content_partial .unsubscribe').click(function(e) {
+				e.preventDefault();
+				subscribeAction(_urlToObj(this.href));
+			});
+		},
+		edit: function(params, extraData) {
+			var draft = params['do'] == 'draft';
+			if (m_hasDraft === true)
+				draft = true;
+			else if (m_hasDraft === false)
+				draft = params.rev = null;
+			if (extraData.sectionForm) {
+				// Define showOnSwitch here, not above, so _updatePageObjsOnSwitch doesn't re-show them too early.
+				m_pageObjs.sectionForm = extraData.sectionForm; // Redefine.
+				extraData.sectionParts = extraData.sectionParts.add('.editbutton_section');
+				m_pageObjs.showOnSwitch = extraData.sectionParts;
+				m_pageObjs.showOnSwitch.hide();
+				_initEdit();
+				_focusEdit();
+			}
+			else
+				_initEdit();
+		},
+		draft: function(params, extraData) {
+			m_actionEffects.edit(params, extraData);
+		},
+		revisions: function(params, extraData) {
+			$('.content_partial form').each(function(idx, form) {
+				$('input[name="do[diff]"]', form).click(function(e) {
+					e.preventDefault();
+					load('diff', null, _formToObj(form));
+				});
+			});
+		},
+		diff: function(params, extraData) {
+			m_actionEffects.revisions(params, extraData);
+		},
+		save: function(params, extraData) {
+			// Recoverable error. Return to the edit form.
+			// If dates don't match, there's a conflict.
+			if ($('.content_partial #a_newer_version_exists').length > 0) {
+				m_viewMode = 'edit';
+				m_actionEffects.edit(params, m_pageObjs.sectionForm ? {sectionForm: m_pageObjs.sectionForm, sectionParts:_getSection(m_pageObjs.sectionForm)} : {});
+
+				var editform = $('#dw__editform');
+				$('input[name="do[save]"]', editform).click(function(e) {
+					e.preventDefault();
+					load('save', null, _formToObj(editform));
+					window.onbeforeunload = '';
+					dw_locktimer.clear();
+				});
+
+				// Cancel button on edit, or Delete Draft button on draft.
+				$('input[name="do[cancel]"]', editform).click(function(e) {
+					e.preventDefault();
+					var id = editform.find('input[name=id]').val();
+					load('show');
+
+					if (!window.keepDraft) {
+						// Silently remove a possibly saved draft using ajax.
+						jQuery.post(DOKU_BASE + 'lib/exe/ajax.php', {
+							call: 'draftdel',
+							id: id,
+							success: function(data, textStatus, jqXHR) {
+								m_hasDraft = false;
+							}
+						});
+					}
+				});
+			}
+			else if ($('.content_partial #dw__editform').length > 0) {
+				m_viewMode = 'edit';
+				m_actionEffects.edit(params, m_pageObjs.sectionForm ? {sectionForm: m_pageObjs.sectionForm, sectionParts:_getSection(m_pageObjs.sectionForm)} : {});
+			}
+			// When ACL fails, a preview is returned.
+			else if ($('.content_partial #preview').length > 0) {
+				//TODO: How do I handle this case? Test.
+				load('show');
+			}
+			else {
+				$('.content_initial').html($('.content_partial').html());
+				load('show');
+			}
+		}
+	};
+
+
+	/**
 	* Perform a standard partial AJAX action (edit, history, etc).
 	*
 	* @param {DOMNode=} insertLoc - Optional
 	* @private
 	*/
-	function _action(action, params, callback, insertLoc) {
+	function _action(action, params, callback, insertLoc, extraData) {
 		params['do'] = action;
 
 		_sendPartial(params, _getVisibleContent(), function(data) {
@@ -530,7 +646,7 @@ var plugin_fastwiki = (function($) {
 
 			if (insertLoc) {
 				var body = $('<div class="content_partial"></div>').append(data);
-				insertLoc.after(body);
+				$(insertLoc[insertLoc.length - 1]).after(body);
 			}
 			// This kind of partial replaces the whole content area.
 			else {
@@ -541,10 +657,25 @@ var plugin_fastwiki = (function($) {
 			}
 			fixActionLinks($('.content_partial'));
 
+			// If a new TOC came back, update existing TOCs.
+			var newToc = $('.content_partial #dw__toc');
+			if (newToc.length > 0) {
+				// #dw_toc_head is for the zioth template. Hey, it's my template. I get to special-case it. :)
+				$('#dw__toc, #dw_toc_head').each(function(idx, elt) {
+					elt = $(elt);
+					if (elt.parents('.content_partial').length == 0) {
+						elt.html(newToc.html());
+					}
+				});
+				newToc.remove();
+			}
+
 			_updatePageObjsOnSwitch();
 
 			if (callback)
-				callback(data);
+				callback(data, extraData);
+			if (m_actionEffects[action])
+				m_actionEffects[action](params, extraData||{});
 
 			setTimeout(function() {
 				if (action == 'edit' || action == 'draft') {
@@ -558,7 +689,8 @@ var plugin_fastwiki = (function($) {
 					$('html,body').animate({scrollTop: 0}, 300);
 			}, 1);
 
-			_setBodyClass(action, params.target);
+			// It's important to use m_viewMode here instead of action, because the callbacks can change the action.
+			_setBodyClass(m_viewMode, m_pageObjs.sectionForm ? "section" : null);
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
 		}, 'text');
@@ -611,12 +743,13 @@ var plugin_fastwiki = (function($) {
 	*/
 	function load(page, sectionForm, params) {
 		// If edit text has changed, confirm before switching views.
-		if ((m_viewMode == 'edit' || m_viewMode == 'draft') && window.textChanged && m_pageObjs.content != $('#wiki__text').val()) {
+		if ((m_viewMode == 'edit' || m_viewMode == 'draft') && (page != 'save' && page != 'preview') && m_pageObjs.content != $('#wiki__text').val()) {
 			if (!confirm(LANG.notsavedyet))
 				return;
 		}
 
 		var prevView = m_viewMode;
+		//m_viewMode = page=='save' ? 'show' : page;
 		m_viewMode = page;
 		if (!params)
 			params = {};
@@ -639,80 +772,19 @@ var plugin_fastwiki = (function($) {
 				}, 1);
 			}
 
-			_setBodyClass(m_origViewMode);
+			_setBodyClass(page);
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
 			return;
 		}
 
-		if (page == 'subscribe') {
-			_action(page, params, function(data) {
-				// Subscribe actions are a special case. Rather than replace the content, they add a success or error message to the top.
-				function subscribeAction(sparams) {
-					_sendPartial(sparams, _getVisibleContent(), function(data) {
-						// data is just a success or error message.
-						load(m_origViewMode);
-
-						var body = $('<div class="message_partial"></div>').append(data);
-						$('.content_initial').before(body);
-					}, 'text');
-				}
-
-				var form = $('#subscribe__form');
-				$('input[name="do[subscribe]"]', form).click(function(e) {
-					e.preventDefault();
-					subscribeAction(_formToObj(form));
-				});
-
-				$('.content_partial .unsubscribe').click(function(e) {
-					e.preventDefault();
-					subscribeAction(_urlToObj(this.href));
-				});
-			});
-		}
-		else if (page == 'draft' || page == 'edit') {
-			var draft = page == 'draft';
-			if (m_hasDraft === true)
-				draft = true;
-			else if (m_hasDraft === false)
-				draft = params.rev = null;
-
+		if (page == 'draft' || page == 'edit') {
 			if (sectionForm) {
-				// Copy the section edit form into the param list.
-				$('input', sectionForm).each(function(idx, elt) {
-					params[elt.name] = elt.value;
-				});
-
-				m_pageObjs.sectionForm = sectionForm;
-				// Save off a list of elements in the section, and then hide the section.
 				var sectionParts = _getSection(sectionForm);
-				var insertLoc = $(sectionParts[sectionParts.length-1]);
-
-				_action(page, params, function(data) {
-					// Define showOnSwitch here, not above, so _updatePageObjsOnSwitch doesn't re-show them too early.
-					m_pageObjs.sectionForm = sectionForm; // Redefine.
-					sectionParts = sectionParts.add('.editbutton_section');
-					m_pageObjs.showOnSwitch = sectionParts;
-					m_pageObjs.showOnSwitch.hide();
-					_initEdit();
-					_focusEdit();
-				}, insertLoc);
+				_action(page, params, null, sectionParts, {sectionForm: sectionForm, sectionParts:sectionParts});
 			}
-			else {
-				_action(page, params, function(data) {
-					_initEdit();
-				});
-			}
-		}
-		else if (page == 'revisions' || page == 'diff') {
-			_action(page, params, function(data) {
-				$('.content_partial form').each(function(idx, form) {
-					$('input[name="do[diff]"]', form).click(function(e) {
-						e.preventDefault();
-						load('diff', null, _formToObj(form));
-					});
-				});
-			});
+			else
+				_action(page, params);
 		}
 		// Default action
 		else

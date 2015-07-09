@@ -50,6 +50,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'secedit'       => $this->getConf('secedit'),
 				'preview'       => $this->getConf('preview'),
 				'fastpages'     => $this->getConf('fastpages'),
+				'save'          => $this->getConf('save'),
 				//'fastns'      => $this->getConf('fastns'),
 
 				// Needed for the initialization of the partial edit page.
@@ -94,7 +95,10 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 		// Some partials only want an error message.
 		if (!$this->m_no_content)
-			tpl_content(false);
+			tpl_content();
+
+		if ($ACT == 'save' || $ACT == 'admin' || $ACT == 'show')
+			tpl_toc();
 
 		// Output error messages.
 		html_msgarea();
@@ -123,7 +127,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	*/
 	function handle_redirect(Doku_Event &$event, $param) {
 		global $ACT;
-		if ($this->m_inPartial && $event->data['preact'] == 'subscribe') {
+		if ($this->m_inPartial && ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')) {
 			// Undo the action override, which sets $ACT to 'show.'
 			$ACT = $event->data['preact'];
 			$event->preventDefault();
