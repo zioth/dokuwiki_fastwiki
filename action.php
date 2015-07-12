@@ -51,7 +51,10 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'preview'       => $this->getConf('preview'),
 				'fastpages'     => $this->getConf('fastpages'),
 				'save'          => $this->getConf('save'),
-				//'fastns'      => $this->getConf('fastns'),
+				'fastshow'      => $this->getConf('fastshow'),
+				'fastshow_same_ns' => $this->getConf('fastshow_same_ns'),
+				'fastshow_include' => $this->getConf('fastshow_include'),
+				'fastshow_exclude' => $this->getConf('fastshow_exclude'),
 
 				// Needed for the initialization of the partial edit page.
 				'locktime'      => $conf['locktime'] - 60,
@@ -91,16 +94,21 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	public function handle_action(Doku_Event &$event, $param) {
 		if (!$this->m_inPartial)
 			return;
-		global $ACT, $INPUT;
+		global $ACT, $INPUT, $ID;
+
+		// Compare permissions between the current page and the passed-in id.
+		$compareid = $INPUT->str('fastwiki_compareid');
+		if ($compareid && (auth_quickaclcheck($ID) != auth_quickaclcheck($compareid)))
+			echo 'PERMISSION_CHANGE';
 
 		// Some partials only want an error message.
-		if (!$this->m_no_content) {
+		else if (!$this->m_no_content) {
 			// Section save. This won't work, unless I return new "range" inputs for all sections.
 //			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
 //			if ($secedit)
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
-			tpl_content();
+			tpl_content(false);
 
 			if ($ACT == 'show')
 				tpl_toc();
