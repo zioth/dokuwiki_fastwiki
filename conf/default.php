@@ -10,3 +10,6 @@ $conf["fastshow"] = 0;
 $conf["fastshow_same_ns"] = 1;
 $conf["fastshow_include"] = "";
 $conf["fastshow_exclude"] = "";
+$conf["preload"] = 0;
+$conf["preload_batchsize"] = 10;
+$conf["preload_per_page"] = 100;

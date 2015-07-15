@@ -8,6 +8,155 @@ var plugin_fastwiki = (function($) {
 	var m_content;
 	var m_initialId;
 	var m_curBaseUrl = document.location.pathname;
+	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize);
+	var m_debug = true;
+
+	/**
+	* The CPageCache class allows you to store pages in memory.
+	*
+	* @param {int} maxSize - The maximum number of pages to store in memory.
+	* @private
+	* @class
+	*/
+	function CPageCache(maxSize, batchSize) {
+		var m_queue = [];
+		var m_p1Queue = []; // Priority 1 queue. These can only be bumped by other p1 pages.
+		var m_pages = {}, m_p1Ids = {};
+		var m_maxSize = maxSize;
+		var m_batchSize = batchSize;
+		var m_maxP1Size = 10;
+
+		// @param {Boolean} p1 - Pages the user actually visited are stored longer than preloads.
+		this.add = function(id, data, p1) {
+			if (p1)
+				_addPage(id, m_p1Queue, m_p1Ids, 1, m_maxP1Size);
+			_addPage(id, m_queue, m_pages, data, m_maxSize, m_p1Queue);
+		}
+		this.remove = function(id) {
+			if (id in m_pages) {
+				m_queue.splice(m_queue.indexOf(id), 1);
+				delete m_pages[id];
+
+				var p1Idx = m_p1Queue.indexOf(id);
+				if (p1Idx >= 0) {
+					m_queue.splice(p1Idx, 1);
+					delete m_p1Ids[id];
+				}
+			}
+		}
+		this.get = function(id) {
+			if (id in m_pages) {
+				// If it's accessed, it goes to the front.
+				_pushToFront(id, m_queue);
+				_pushToFront(id, m_p1Queue);
+				return m_pages[id];
+			}
+			return null;
+		}
+		this.has = function(id) {
+			return id in m_pages;
+		}
+
+		// Load initial cache, based on hrefs in an element
+		this.load = function(elt) {
+			var self = this;
+			var ids = {};
+			$('a', elt).each(function(idx, a) {
+				var href = a.getAttribute('href'); // Use getAttribute because some browsers make href appear to be cannonical.
+				if (href && href.indexOf('://') < 0) {
+					var numParams = href.split('=').length;
+					if (href.indexOf('id=') >= 0)
+						numParams--;
+					if (numParams == 1) {
+						var pageinfo = _getSwitchId(href);
+						if (pageinfo && !m_cache.has(pageinfo.id))
+							ids[pageinfo.id] = 1;
+					}
+				}
+			});
+
+			var idsA = [];
+			for (id in ids)
+				idsA.push(id);
+
+			if (idsA.length > m_maxSize) {
+				// There are so many links that the chances of preloading the right one are basically zero.
+				// TODO: Sort by vertical position and preload near the top of the page?
+			}
+			else if (idsA.length > 0) {
+				if (idsA.length > m_maxSize)
+					idsA.length = m_maxSize;
+
+				// Split pages into at least 4 batches if possible.
+				var batchSize = m_batchSize;
+				if (idsA.length / batchSize < 4)
+					batchSize = Math.ceil(idsA.length / 4);
+				var requests = [];
+				for (var x=0; x<Math.ceil(idsA.length / batchSize); x++) {
+					var sublist = idsA.slice(x*batchSize, (x+1)*batchSize);
+					var params = {partial: 1};
+					params['do'] = 'fastwiki_preload';
+					params.fastwiki_preload_pages = sublist.join(',');
+					requests.push(params);
+				}
+
+				// Make the first 4 requests. Limit to 4 so as not to monopolize all the browser's sockets (there are 6 in modern browsers).
+				for (var x=0; x<Math.min(4, requests.length); x++)
+					doPost(requests.shift());
+
+				function doPost(params) {
+					m_debug && console.log("Preloading " + params.fastwiki_preload_pages);
+					jQuery.post(DOKU_BASE + 'doku.php', params, function(data) {
+						var pages = data.split(JSINFO.fastwiki.preload_head);
+						for (var p=0; p<pages.length; p++) {
+							var line1End = pages[p].indexOf('\n');
+							var id = pages[p].substr(0, line1End);
+							pages[p] = pages[p].substr(line1End+1);
+							m_debug && console.log("Loaded " + [id, pages[p].length]);
+							// If a bug causes a whole page to be loaded, don't cache it.
+							if (pages[p].indexOf('<body') >= 0)
+								m_debug && console.log("ERROR: Body found!");
+							else
+								self.add(id, pages[p]);
+						}
+
+						if (requests.length > 0)
+							doPost(requests.shift());
+					}, 'text');
+				}
+			}
+		}
+
+		function _pushToFront(id, queue) {
+			var idx = queue.indexOf(id);
+			if (idx >= 0) {
+				queue.splice(idx, 1);
+				queue.push(id);
+			}
+		}
+		function _addPage(id, queue, hash, data, maxSize, exclude) {
+			if (id in hash)
+				_pushToFront(id, queue);
+			else if (data) {
+				if (queue.length > maxSize) {
+					if (exclude) {
+						for (var x=0; x<queue.length; x++) {
+							if (!exclude[queue[x]]) {
+								delete hash[queue[x]];
+								queue.splice(x, 1);
+							}
+						}
+					}
+					else
+						delete hash[queue.shift()];
+				}
+				queue.push(id);
+			}
+
+			if (data)
+				hash[id] = data;
+		}
+	}
 
 
 	/**
@@ -314,7 +463,7 @@ var plugin_fastwiki = (function($) {
 			$('a', elt).click(function(e) {
 				// TODO Document: Doesn't work with cannonical url feature.
 				var href = this.getAttribute('href'); // Use getAttribute because some browsers make href appear to be cannonical.
-				if (href.indexOf('://') < 0) {
+				if (href && href.indexOf('://') < 0) {
 					if (href.match(new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$'))) {
 						load('show');
 						e.preventDefault();
@@ -343,6 +492,9 @@ var plugin_fastwiki = (function($) {
 				load('edit', form, _formToObj(form))
 			});
 		}
+
+		if (JSINFO.fastwiki.preload)
+			m_cache.load(elt);
 	}
 
 
@@ -484,6 +636,10 @@ var plugin_fastwiki = (function($) {
 				e.preventDefault();
 				load('save', null, _formToObj($('#dw__editform')));
 			}
+			// Invalidate the cache if fastwiki.save is off. If it's on, the cache will be updated after save.
+			else
+				m_cache.remove(JSINFO.id);
+
 			window.onbeforeunload = '';
 			dw_locktimer.clear();
 		});
@@ -718,20 +874,30 @@ var plugin_fastwiki = (function($) {
 	function _action(action, params, callback, insertLoc, extraData) {
 		params['do'] = action;
 
-		_sendPartial(params, _getVisibleContent(), function(data) {
-			var body;
+		function cb(data) {
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
+			var body = $('<div class="content_partial"></div>').append(data);
 
-			if (insertLoc) {
-				body = $('<div class="content_partial"></div>').append(data);
-				$(insertLoc[insertLoc.length - 1]).after(body);
+			//TODO: I don't like having to put special case code here. Is there any better place to put it? m_actionEffects is too late.
+			if (insertLoc && action=='edit') {
+				var newform = $('#dw__editform', body);
+				if (newform.find('input[name=prefix]').val() == '.' && newform.find('input[name=suffix]').val() == '') {
+					// There was an error and the whole page is being edited, or there was only one section on the page.
+					delete m_pageObjs.sectionForm;
+					if (extraData)
+						delete extraData.sectionForm;
+					insertLoc = null;
+				}
 			}
+
+			if (insertLoc)
+				$(insertLoc[insertLoc.length - 1]).after(body);
 			// This kind of partial replaces the whole content area.
 			else {
 				// Swap ids and classes, so the new element is styled correctly.
 				var initial = $('.content_initial');
-				body = $('<div class="content_partial"></div>').addClass(initial[0].className.replace(/content_initial/, '')).attr('id', m_initialId).append(data);
+				body.addClass(initial[0].className.replace(/content_initial/, '')).attr('id', m_initialId);
 				initial.attr('id', '').after(body);
 			}
 
@@ -774,13 +940,26 @@ var plugin_fastwiki = (function($) {
 			// It's important to use m_viewMode here instead of action, because the callbacks can change the action.
 			_setBodyClass(m_viewMode, m_pageObjs.sectionForm ? "section" : null);
 
+			// Cache the page.
+			if (m_viewMode == 'show')
+				m_cache.add(JSINFO.id, data, true);
+
 			// Update doku state.
 			if (!insertLoc)
 				dw_behaviour.init();
 
 			if (m_tpl.updateAfterSwitch)
 				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm, m_prevView);
-		}, 'text');
+		}
+
+		//TODO: On save, refresh cache.
+		// If the page is cached, load it from cache.
+		if (action == 'show' && m_cache.get(JSINFO.id)) {
+			m_debug && console.log("Getting from cache: " + JSINFO.id);
+			cb(m_cache.get(JSINFO.id));
+		}
+		else
+			_sendPartial(params, _getVisibleContent(), cb, 'text');
 	}
 
 
@@ -801,8 +980,7 @@ var plugin_fastwiki = (function($) {
 		}
 
 		params.partial = 1;
-
-		jQuery.post(m_curBaseUrl, params, function(data) {
+		jQuery[!params['do'] || params['do']=='show' ? 'get' : 'post'](m_curBaseUrl, params, function(data) {
 			// Special error conditions
 			if (data == 'PERMISSION_CHANGE') {
 				delete params.partial;
@@ -863,7 +1041,7 @@ var plugin_fastwiki = (function($) {
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
 
-			// Scroll to top, except during sectionedit. Then, we want to see the content we just edited.
+			// Scroll to top.
 			if (!wasSecedit) {
 				setTimeout(function() {
 					$('html,body').animate({scrollTop: 0}, 300);
@@ -881,6 +1059,9 @@ var plugin_fastwiki = (function($) {
 			if ((page == 'draft' || page == 'edit') && sectionForm) {
 				var sectionParts = _getSection(sectionForm);
 				_action(page, params, callback, sectionParts, {sectionForm: sectionForm, sectionParts:sectionParts});
+
+				//var top = sectionForm.offset().top;
+				//	$('html,body').attr({scrollTop: top+'px'});
 			}
 			// Default action
 			else
@@ -890,12 +1071,11 @@ var plugin_fastwiki = (function($) {
 
 
 	/**
-	* Switch to a different page id (fastshow feature).
+	* Get the id of the page, or null if switching to that page doesn't support fastshow.
 	*
-	* @param {String} newpage - The URL of the new page.
-	* @param {Boolean=false} fromPopstate - True if function was called in the onpopstate event.
+	* @return {Object} with two members: id (page id) and ns (namespace).
 	*/
-	function _switchBasePath(newpage, fromPopstate) {
+	function _getSwitchId(newpage) {
 		//TODO Bug: Doesn't work with httpd mode unless doku is in the base directory. Could fix by assuming same namespace.
 		var pageid = newpage.substr(1).replace(/.*doku.php(\?id=|\/)/, '').replace(/\//g, ':');
 		var ns = pageid.replace(/:[^:]+$/, '');
@@ -910,17 +1090,33 @@ var plugin_fastwiki = (function($) {
 		if (excl && pageid.match('^(' + excl.split(/\s*,\s*/).join('|') + ')'))
 			return false;
 
+		return {id:pageid, ns:ns};
+	}
+
+
+	/**
+	* Switch to a different page id (fastshow feature).
+	*
+	* @param {String} newpage - The URL of the new page.
+	* @param {Boolean=false} fromPopstate - True if function was called in the onpopstate event.
+	*/
+	function _switchBasePath(newpage, fromPopstate) {
+		//TODO Bug: Doesn't work with httpd mode unless doku is in the base directory. Could fix by assuming same namespace.
+		var pageinfo = _getSwitchId(newpage);
+		if (!pageinfo)
+			return false;
+
 		// Update JSINFO
 		var oldid = JSINFO.id;
-		JSINFO.id = pageid;
-		JSINFO.namespace = ns;
+		JSINFO.id = pageinfo.id;
+		JSINFO.namespace = pageinfo.ns;
 
 		// Replace 'id' fields.
 		$('form').each(function(idx, form) {
 			if ($(form).find('input[name="do"]').length > 0) {
 				var input = $('input[name="id"]', form);
 				if (input.val() == oldid)
-					input.val(pageid);
+					input.val(pageinfo.id);
 			}
 		});
 

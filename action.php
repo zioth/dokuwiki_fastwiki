@@ -10,8 +10,9 @@ if (!defined('DOKU_INC'))
  * @author Eli Fenton
  */
 class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
-	var $m_inPartial = false;
-	var $m_no_content = false;
+	protected $m_inPartial = false;
+	protected $m_no_content = false;
+	protected $m_preload_head = '====47hsjwycv782nwncv8b920m8bv72jmdm3929bno3b3====';
 
 	/**
 	* Register callback functions
@@ -20,10 +21,13 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	*/
 	public function register(Doku_Event_Handler $controller) {
 		$controller->register_hook('DOKUWIKI_STARTED', 'BEFORE', $this, 'handle_start');
+		$controller->register_hook('DOKUWIKI_STARTED', 'AFTER', $this, 'override_loadskin');
 		$controller->register_hook('ACTION_ACT_PREPROCESS', 'BEFORE', $this, 'handle_action_before');
 		$controller->register_hook('ACTION_ACT_PREPROCESS', 'AFTER', $this, 'handle_action');
 		$controller->register_hook('TPL_ACT_RENDER', 'BEFORE', $this, 'pre_render');
+		$controller->register_hook('TPL_ACT_UNKNOWN', 'BEFORE', $this, 'unknown_action');
 		$controller->register_hook('ACTION_SHOW_REDIRECT', 'BEFORE', $this, 'handle_redirect');
+		$controller->register_hook('ACTION_HEADERS_SEND', 'BEFORE', $this, 'block_headers');
 	}
 
 
@@ -55,6 +59,10 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'fastshow_same_ns' => $this->getConf('fastshow_same_ns'),
 				'fastshow_include' => $this->getConf('fastshow_include'),
 				'fastshow_exclude' => $this->getConf('fastshow_exclude'),
+				'preload'          => $this->getConf('preload'),
+				'preload_head'     => $this->m_preload_head,
+				'preload_batchsize'=> $this->getConf('preload_batchsize'),
+				'preload_per_page' => $this->getConf('preload_per_page'),
 
 				// Needed for the initialization of the partial edit page.
 				'locktime'      => $conf['locktime'] - 60,
@@ -65,6 +73,44 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'templatename'  => $conf['template']
 			);
 		}
+	}
+
+
+	/**
+	* The Loadskin plugin changes $conf['template'] in multiple places. Make sure we cover them all.
+	*
+	* @param {Doku_Event} $event - The DokuWiki event object.
+	* @param {mixed} $param  - The fifth argument to register_hook().
+	*/
+	public function override_loadskin(Doku_Event &$event, $param) {
+		global $conf;
+		if ($this->m_inPartial)
+			$conf['template'] = '../plugins/fastwiki/tplblank';
+	}
+
+
+	/**
+	* Define special actions.
+	*
+	* @param {Doku_Event} $event - The DokuWiki event object.
+	* @param {mixed} $param  - The fifth argument to register_hook().
+	*/
+	public function unknown_action(Doku_Event &$event, $param) {
+		if ($event->data == 'fastwiki_preload')
+			$event->preventDefault();
+	}
+
+
+	/**
+	* Don't output headers while proxying preload pages.
+	*
+	* @param {Doku_Event} $event - The DokuWiki event object.
+	* @param {mixed} $param  - The fifth argument to register_hook().
+	*/
+	public function block_headers(Doku_Event &$event, $param) {
+		global $INPUT;
+		if ($INPUT->str('fastwiki_preload_proxy'))
+			$event->preventDefault();
 	}
 
 
@@ -82,6 +128,70 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		// For partials, we don't want output from subscribe actions -- just success/error messages.
 		if ($ACT == 'subscribe' && $INPUT->str('sub_action'))
 			$this->m_no_content = true;
+
+		// Preload page content.
+		else if ($this->getConf('preload') && $ACT == 'fastwiki_preload') {
+			$event->preventDefault();
+			$maxpages = $this->getConf('preload_batchsize');
+			$pages = split(',', $INPUT->str('fastwiki_preload_pages'));
+			$count = min($maxpages, count($pages));
+			$requests = array();
+			$cookies = array();
+			foreach ($_COOKIE as $name=>$value)
+				array_push($cookies, $name . '=' . addslashes($value));
+
+			for ($x=0; $x<$count; $x++) {
+				$newid = cleanID($pages[$x]);
+				// ACL must be exactly the same.
+				if (page_exists($newid) && (auth_quickaclcheck($ID) == auth_quickaclcheck($newid))) {
+					// Because there's no way to call doku recursively, curl is the only way to get a fresh context.
+					// Without a fresh context, there's no easy way to get action plugins to run or TOC to render properly.
+					$ch = curl_init(DOKU_URL.'doku.php');
+					curl_setopt($ch, CURLOPT_POST, 1);
+					curl_setopt($ch, CURLOPT_POSTFIELDS, "id={$newid}&partial=1&fastwiki_preload_proxy=1");
+					curl_setopt($ch, CURLOPT_COOKIE, join('; ', $cookies));
+					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects
+					curl_setopt($ch, CURLOPT_HEADER, 0);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+					array_push($requests, array($ch, $newid));
+				}
+			}
+
+			// Request URLs with multiple threads.
+			// TODO: This currently hangs. Enable the array_push above, and remove curl_exec, to test.
+			if (count($requests) > 0) {
+				$multicurl = curl_multi_init();
+				foreach ($requests as $req)
+					curl_multi_add_handle($multicurl, $req[0]);
+
+				$active = null;
+				// Strange loop becuase php 5.3.18 broke curl_multi_select
+				do {
+					do {
+						$mrc = curl_multi_exec($multicurl, $active);
+					} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+					// Wait 10ms to fix a bug where multi_select returns -1 forever.
+					usleep(10000);
+				} while(curl_multi_select($multicurl) === -1);
+
+				while ($active && $mrc == CURLM_OK) {
+					if (curl_multi_select($multicurl) != -1) {
+						do {
+							$mrc = curl_multi_exec($multicurl, $active);
+						} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+					}
+				}
+
+				foreach ($requests as $idx=>$req) {
+					if ($idx > 0)
+						print $this->m_preload_head;
+					print $req[1] . "\n";
+					echo curl_multi_getcontent($req[0]);
+					curl_multi_remove_handle($multicurl, $req[0]);
+				}
+				curl_multi_close($multicurl);
+			}
+		}
 	}
 
 
@@ -103,15 +213,14 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 		// Some partials only want an error message.
 		else if (!$this->m_no_content) {
+			if ($ACT == 'show')
+				tpl_toc();
 			// Section save. This won't work, unless I return new "range" inputs for all sections.
 //			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
 //			if ($secedit)
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
 			tpl_content(false);
-
-			if ($ACT == 'show')
-				tpl_toc();
 		}
 
 		// Output error messages.
