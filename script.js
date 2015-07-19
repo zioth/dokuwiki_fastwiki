@@ -159,220 +159,18 @@ var plugin_fastwiki = (function($) {
 	}
 
 
-	/**
-	* Map of identifying selector to special cases. Use selectors instead of template names because there are families of templates.
-	*
-	* @private
-	*/
-	var m_tplSpecialCases = (function() {
-		var m_showRow, m_editRow;
-
-		var m_utils = {
-			makeShowLink: function(url) {
-				url = url.replace(/\?do=.*$/, '');
-				return '<a href="' + url + '" class="action show" accesskey="v" rel="nofollow" title="' + JSINFO.fastwiki.text_btn_show + ' [V]"><span>' + JSINFO.fastwiki.text_btn_show + '</span></a>';
-			},
-
-			// Add a "show" link for templates which have a <ul> list of action links.
-			makeShowRowLI: function(pagetools) {
-				var showLink = $("a[href $= 'do=']", pagetools);
-				if (showLink.length > 0)
-					m_showRow = $(showLink.parents('li')[0]);
-				else {
-					var link = $("a[href *= 'do=']", pagetools)[0];
-					if (link) {
-						m_showRow = $('<li>' + m_utils.makeShowLink(link.href) + '</li>').toggle(m_viewMode != 'show');
-						pagetools.prepend(m_showRow);
-					}
-				}
-			},
-
-			// Update button bars
-			fixButtons: function(showParent, allButtons) {
-				var showBtn = $('.button.btn_show', showParent);
-				if (showBtn.length == 0) {
-					var url = $('form.button', allButtons)[0].action;
-					showBtnHtml = '<form class="button btn_show" method="get" action="' + url + '"><div class="no"><input type="hidden" name="do" value=""><input type="submit" value="' + JSINFO.fastwiki.text_btn_show + '" class="button" accesskey="v" title="' + JSINFO.fastwiki.text_btn_show + ' [V]"></div></form>';
-					showParent.each(function(idx, elt) {
-						var newBtn = $(showBtnHtml);
-						showBtn = showBtn.add(newBtn);
-						$(elt).prepend(newBtn.toggle(m_viewMode!='show'));
-					});
-				}
-				var editBtn = $('.button.btn_edit', allButtons);
-				if (editBtn.length > 0)
-					m_editRow = m_editRow ? m_editRow.add(editBtn) : editBtn;
-				m_showRow = m_showRow ? m_showRow.add(showBtn) : showBtn;
-			}
-		};
-
-		return {
-			zioth: {
-				isActive: function() {
-					return JSINFO.fastwiki.templatename == 'zioth';
-				},
-				updateToc: function(tocObj) {
-					$('#dw_toc_head, .tocBlock').remove();
-
-					if (tocObj.length > 0) {
-						$('.content_initial').prepend($('<div class="tocBlock infoBlock"></div>').append(tocObj.clone()));
-						$('.header-right').append($('<div id="dw_toc_head"></div>').append(tocObj.html()));
-					}
-				},
-				updateAfterSwitch: function(mode, isSectionEdit, prevMode) {
-					if (window.DISQUS) {
-						DISQUS.reset({
-						  reload: true,
-						  config: function () {
-							this.page.identifier = JSINFO.id;
-							this.page.url = document.location.href;
-						  }
-						});
-					}
-				}
-			},
-			// dokuwiki, starter, greensteel
-			dokuwiki: {
-				isActive: function() {
-					return $('#dokuwiki__pagetools').length > 0;
-				},
-				init: function() {
-					m_utils.makeShowRowLI($("#dokuwiki__pagetools ul"));
-				},
-				updateAfterSwitch: function(mode, isSectionEdit, prevMode) {
-					// The dokuwiki template hides the sidebar in non-show modes
-					$("#dokuwiki__top").toggleClass("showSidebar hasSidebar", mode=='show');
-					$("#dokuwiki__aside").css('display', mode=='show' ? '' : 'none');
-					m_showRow.toggle(mode != 'show');
-				},
-				// Only show is supported as a start mode, because otherwise, we'd have to add pagetools for each action and check for actions being allowed.
-				startModeSupported: function(action) {
-					return action == 'show';
-				}
-			},
-			arctic: {
-				isActive: function() {
-					return JSINFO.fastwiki.templatename == 'arctic';
-				},
-				init: function() {
-					var buttonBars = $('#bar__bottom, #bar__top');
-					if ($('.button', buttonBars).length > 0)
-						m_utils.fixButtons($('.bar-left'), buttonBars)
-					else {
-						var pagetools = $('.bar-left');
-						m_editRow = $("a[href *= 'do=edit']", pagetools)
-						m_showRow = $("a[href $= 'do=']", pagetools[0]);
-						if (m_showRow.length == 0) {
-							var url = $("a[href *= 'do=']")[0].href;
-							m_showRow = $();
-							pagetools.each(function(idx, elt) {
-								var show = $(m_utils.makeShowLink(url)).toggle(mode != 'show');
-								m_showRow = m_showRow.add(show);
-								$(elt).prepend(show);
-							});
-						}
-					}
-				},
-				updateAfterSwitch: function(mode, isSectionEdit, prevMode) {
-					m_showRow.toggle(mode != 'show');
-					m_editRow.toggle(mode != 'edit' && mode != 'draft');
-					$(".left_sidebar, .right_sidebar").css('display', mode=='show' ? '' : 'none');
-				},
-				// Only show is supported as a start mode, because otherwise, we'd have to add pagetools for each action and check for actions being allowed.
-				startModeSupported: function(action) {
-					return action == 'show';
-				}
-			},
-			starterbootstrap: {
-				isActive: function() {
-					return $('ul.nav.navbar-nav').length > 0;
-				},
-				init: function() {
-					var pagetools = $("ul.nav.navbar-nav");
-					m_utils.makeShowRowLI(pagetools);
-					m_editRow = $($('li', pagetools)[0])
-				},
-				updateAfterSwitch: function(mode, isSectionEdit, prevMode) {
-					m_showRow.toggle(mode != 'show');
-					m_editRow.toggle(mode != 'edit' && mode != 'draft');
-				},
-				updateToc: function(tocObj) {
-					$('#dw_toc').remove();
-
-					if (tocObj.length > 0)
-						$('.content_initial').prepend($('<div id="dw_toc"></div>').append(tocObj.html()));
-				},
-				// Only show is supported as a start mode, because otherwise, we'd have to add pagetools for each action and check for actions being allowed.
-				startModeSupported: function(action) {
-					return action == 'show';
-				}
-			},
-			// scanlines
-			scanlines: {
-				isActive: function() {
-					return $('.stylehead .bar_top .bar_top_content').length > 0;
-				},
-				family: 'scanlines',
-				init: function() {
-					// If the toolbox is enabled.
-					var toolbox = $(".sidebar_content .li_toolbox ul");
-					m_utils.makeShowRowLI(toolbox);
-					m_editRow = $('.action.edit', toolbox).parent();
-
-					// Button bar
-					m_utils.fixButtons($('.bar_bottom_content .bar-right'), $('.bar_bottom_content .bar-right'))
-				},
-				updateAfterSwitch: function(mode, isSectionEdit, prevMode) {
-					$(".right_sidebar, .left_sidebar").css('display', mode=='edit' ? 'none' : '');
-					m_showRow.toggle(mode != 'show');
-					m_editRow.toggle(mode != 'edit' && mode != 'draft');
-
-					// In this template, two levels of DOM structure are missing in edit mode. Clear out their styles.
-					if (mode == 'edit' || mode == 'draft') {
-						$('.page_720').css({border: 0, textAlign: 'inherit'});
-						$('.left_page, .right_page').css({float:'none', width:'auto'});
-					}
-					else {
-						$('.page_720').css({border: '', textAlign: ''});
-						$('.left_page, .right_page').css({float:'', width:''});
-					}
-				}
-			},
-			// vector, prsnl10
-			fully_supported: {
-				isActive: function() {return true;}
-			}
-		};
-	})();
-
-	/**
-	* tpl_init_fastwiki() can be defined by a template to set its own configuration.
-	*/
-	if (window.tpl_init_fastwiki)
-		m_tplSpecialCases = tpl_init_fastwiki();
-
-	var m_tpl = {};
-
 
 	//////////
 	// On load initialization
 	//////////
 	$(function() {
-		// Get template special cases.
-		for (var tpl in m_tplSpecialCases) {
-			if (m_tplSpecialCases[tpl].isActive()) {
-				m_tpl = m_tplSpecialCases[tpl];
-				break;
-			}
-		}
-
 		// Leaving imgdetail with ajax is just too complicated to support.
 		if (document.location.href.indexOf("detail.php") >= 0)
 			m_viewMode = 'unsupported';
 		else {
 			var urlParams = _urlToObj(document.location.href);
 			m_viewMode = urlParams['do'] || 'show';
-			if (m_tpl.startModeSupported && !m_tpl.startModeSupported(m_viewMode))
+			if (window.tpl_fastwiki_startmode_support && !(m_viewMode in tpl_fastwiki_startmode_support))
 				m_viewMode = 'unsupported';
 		}
 		m_origViewMode = m_viewMode;
@@ -384,8 +182,7 @@ var plugin_fastwiki = (function($) {
 
 		m_modeClassElt = m_content.hasClass('dokuwiki') ? m_content : $(m_content.parents('.dokuwiki')[0] || document.body);
 
-		if (m_tpl.init)
-			m_tpl.init();
+		$(window).trigger('fastwiki:init', [m_viewMode]);
 
 		if (JSINFO.fastwiki.fastpages)
 			fixActionLinks(document.body);
@@ -901,10 +698,9 @@ var plugin_fastwiki = (function($) {
 				initial.attr('id', '').after(body);
 			}
 
-			var newToc = $('.content_partial #dw__toc');
-			newToc.addClass('fromPartial');
-			newToc = newToc.clone().removeClass('fromPartial');
-			var hasNewToc = !!newToc;
+			// fwJustincase is to catch the case where the callbacks modify the DOM enough that this element not longer exists.
+			var newToc = $('.content_partial #dw__toc').addClass('fwJustincase');
+			var hasNewToc = newToc.length > 0;
 
 			_updatePageObjsOnSwitch();
 
@@ -913,10 +709,9 @@ var plugin_fastwiki = (function($) {
 			if (m_actionEffects[action])
 				m_actionEffects[action](params, extraData||{});
 			// Update TOC. The default behavior is just to leave it in place, where it comes in.
-			if (m_tpl.updateToc && m_viewMode == 'show') {
-				m_tpl.updateToc(newToc);
-				$('#dw__toc.fromPartial').remove();
-			}
+			newToc = $('.fwJustincase').removeClass('fwJustincase');
+			if (m_viewMode == 'show')
+				$(window).trigger('fastwiki:updateToc', [newToc]);
 
 			// Initialize TOC. Must happen after m_actionEffects, which can overwrite the HTML and lose events.
 			if (hasNewToc)
@@ -948,8 +743,7 @@ var plugin_fastwiki = (function($) {
 			if (!insertLoc)
 				dw_behaviour.init();
 
-			if (m_tpl.updateAfterSwitch)
-				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm, m_prevView);
+			$(window).trigger('fastwiki:afterSwitch', [m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm, m_prevView]);
 		}
 
 		//TODO: On save, refresh cache.
@@ -1049,8 +843,7 @@ var plugin_fastwiki = (function($) {
 			}
 
 			_setBodyClass(page);
-			if (m_tpl.updateAfterSwitch)
-				m_tpl.updateAfterSwitch(m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm);
+			$(window).trigger('fastwiki:afterSwitch', [m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm]);
 			if (callback)
 				callback();
 		}
@@ -1140,8 +933,7 @@ var plugin_fastwiki = (function($) {
 					history.pushState({url: newpage, title:document.title}, "", newpage);
 				}
 
-				if (m_tpl.afterIdChange)
-					m_tpl.afterIdChange(prevPage, newpage);
+				$(window).trigger('fastwiki:afterIdChange', [prevPage, newpage]);
 			}, 1); // setTimeout so it happens after all other page manipulations. This won't be needed if I do history in _action().
 		});
 
@@ -1154,3 +946,5 @@ var plugin_fastwiki = (function($) {
 		fixActionLinks: fixActionLinks
 	};
 })(jQuery);
+
+/* DOKUWIKI:include templates.js */
