@@ -261,7 +261,7 @@ var plugin_fastwiki = (function($) {
 				// TODO Document: Doesn't work with cannonical url feature.
 				var href = this.getAttribute('href'); // Use getAttribute because some browsers make href appear to be cannonical.
 				if (href && href.indexOf('://') < 0) {
-					if (href.match(new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$'))) {
+					if (href.match(_getSelfRefRegex())) {
 						load('show');
 						e.preventDefault();
 					}
@@ -641,6 +641,7 @@ var plugin_fastwiki = (function($) {
 				$('.content_partial').remove();
 				// The html() transfer above lost dynamic events. Reset.
 				fixActionLinks($('.content_initial'));
+				_refreshPageTitle(false);
 
 				load('show');
 				// These two lines are from dw_page.init()
@@ -866,22 +867,26 @@ var plugin_fastwiki = (function($) {
 	/**
 	* Get the id of the page, or null if switching to that page doesn't support fastshow.
 	*
+	* @param {String} newpage - The new page URL.
+	* @param {Boolean} force - Ignore fastshow rules.
 	* @return {Object} with two members: id (page id) and ns (namespace).
 	*/
-	function _getSwitchId(newpage) {
+	function _getSwitchId(newpage, force) {
 		//TODO Bug: Doesn't work with httpd mode unless doku is in the base directory. Could fix by assuming same namespace.
 		var pageid = newpage.substr(1).replace(/.*doku.php(\?id=|\/)/, '').replace(/\//g, ':');
 		var ns = pageid.replace(/:[^:]+$/, '');
 
-		if (JSINFO.fastwiki.fastshow_same_ns && ns != JSINFO.namespace)
-			return false;
-		var incl = JSINFO.fastwiki.fastshow_include, excl = JSINFO.fastwiki.fastshow_exclude;
-		// Include namespaces and pages
-		if (incl && !pageid.match('^(' + incl.split(/\s*,\s*/).join('|') + ')'))
-			return false;
-		// Exclude namespaces and pages
-		if (excl && pageid.match('^(' + excl.split(/\s*,\s*/).join('|') + ')'))
-			return false;
+		if (!force) {
+			if (JSINFO.fastwiki.fastshow_same_ns && ns != JSINFO.namespace)
+				return false;
+			var incl = JSINFO.fastwiki.fastshow_include, excl = JSINFO.fastwiki.fastshow_exclude;
+			// Include namespaces and pages
+			if (incl && !pageid.match('^(' + incl.split(/\s*,\s*/).join('|') + ')'))
+				return false;
+			// Exclude namespaces and pages
+			if (excl && pageid.match('^(' + excl.split(/\s*,\s*/).join('|') + ')'))
+				return false;
+		}
 
 		return {id:pageid, ns:ns};
 	}
@@ -913,21 +918,14 @@ var plugin_fastwiki = (function($) {
 			}
 		});
 
+
 		var prevPage = m_curBaseUrl;
 		m_curBaseUrl = newpage;
 		m_viewMode = null;
 		load('show', null, {fastwiki_compareid:oldid}, true, function() {
 			// Use HTML5 history.pushState to make the browser's back and forward buttons work.
 			setTimeout(function() {
-				var titleElt;
-				$('h1, h2, h3, h4, h5, h6', $('.content_initial')).each(function(idx, elt) {
-					if (elt.className.indexOf('sectionedit') >= 0) {
-						titleElt = elt;
-						return false; // Break out of each().
-					}
-				});
-
-				document.title = titleElt ? $(titleElt).text() : '';
+				_refreshPageTitle(true);
 				if (!fromPopstate) {
 					history.replaceState({url: prevPage, title: document.title}, "", prevPage);
 					history.pushState({url: newpage, title:document.title}, "", newpage);
@@ -938,6 +936,53 @@ var plugin_fastwiki = (function($) {
 		});
 
 		return true;
+	}
+
+
+	/**
+	* Get a regex which matches the current page id in a url.
+	*
+	* @returns {RegExp}
+	*/
+	function _getSelfRefRegex() {
+		return new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$|^#$');
+	}
+
+
+	function _getWikiTitle() {
+		var titleElt;
+		$('h1, h2, h3, h4, h5, h6', $('.content_initial')).each(function(idx, elt) {
+			if (elt.className.indexOf('sectionedit') >= 0) {
+				titleElt = elt;
+				return false; // Break out of each().
+			}
+		});
+		return titleElt ? $(titleElt).text() : '';
+	}
+
+
+	/**
+	* Refresh the page title based on the top heading.
+	*
+	* @param {Boolean} fromIdSwitch - Is this refresh triggered by an id switch?
+	*/
+	var m_prevTitle = _getWikiTitle();
+	function _refreshPageTitle(fromIdSwitch) {
+		var title = _getWikiTitle();
+
+		document.title = title;
+
+		//TODO: Close, but I need to get the prevTitle from h1,h2,etc like above.
+		if (!fromIdSwitch) {
+			$('a').each(function(idx, elt) {
+				var $this = $(this);
+				var href = $this.attr('href');
+				if (href && href.match(_getSelfRefRegex()) && $this.text() == m_prevTitle)
+					$this.text(document.title);
+			});
+		}
+
+		m_prevTitle = title;
 	}
 
 
