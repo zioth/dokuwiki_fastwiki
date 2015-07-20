@@ -9,7 +9,8 @@ var plugin_fastwiki = (function($) {
 	var m_initialId;
 	var m_curBaseUrl = document.location.pathname;
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize);
-	var m_debug = true;
+	var m_debug = false;
+	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 
 	/**
 	* The CPageCache class allows you to store pages in memory.
@@ -213,7 +214,6 @@ var plugin_fastwiki = (function($) {
 		// login, register and resendpwd: Templates, plugins or future versions of dokuwiki might make them https.
 		// admin: Admin can change things outside the main content area.
 		// conflict, denied and locked: I don't know what they do.
-		var supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 		var formActions = {search: 1};
 		var supportedFields = {'do':1, rev:1, id:1};
 
@@ -227,7 +227,7 @@ var plugin_fastwiki = (function($) {
 			if (!params['do'])
 				params['do'] = 'show';
 
-			if (params['do'] in supportedActions) {
+			if (params['do'] in m_supportedActions) {
 				e.preventDefault();
 				load(params['do'], null, params);
 			}
@@ -235,7 +235,7 @@ var plugin_fastwiki = (function($) {
 
 		$('input[type="submit"], input[type="button"], button', elt).click(function(e) {
 			var form = $(this).parents('form');
-			if (form.length > 0 && form[0]['do'] && form[0]['do'].value in supportedActions) {
+			if (form.length > 0 && form[0]['do'] && form[0]['do'].value in m_supportedActions) {
 				// For now, only allow very simple forms
 				var supported = true;
 				$('input[type != "submit"]', form).each(function(idx, elt) {
@@ -477,7 +477,9 @@ var plugin_fastwiki = (function($) {
 	* @param {String=} target - The part of the page being targetted. Can be one of: {section}
 	*/
 	function _setBodyClass(action, target) {
-		m_modeClassElt.removeClass('mode_show mode_edit mode_subscribe mode_secedit mode_revisions mode_secedit').addClass('mode_'+action);
+		for (var k in m_supportedActions)
+			m_modeClassElt.removeClass('mode_' + k);
+		m_modeClassElt.addClass('mode_'+action);
 		// Special case for section edit.
 		if (target == 'section')
 			m_modeClassElt.removeClass('mode_edit').addClass('mode_show mode_secedit');
