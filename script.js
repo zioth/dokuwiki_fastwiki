@@ -429,7 +429,8 @@ var plugin_fastwiki = (function($) {
 		$('#edbtn__save').click(function(e) {
 			textChanged = false;
 
-			if (JSINFO.fastwiki.save && m_origViewMode == 'show') {
+			// Do a fast save if we started on 'show' and we're not creating or deleting the page.
+			if (JSINFO.fastwiki.save && m_origViewMode == 'show' && $edit_text.val().length>0 && m_pageObjs.content.length>0) {
 				e.preventDefault();
 				load('save', null, _formToObj($('#dw__editform')));
 			}
