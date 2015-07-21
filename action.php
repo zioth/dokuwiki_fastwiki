@@ -106,19 +106,6 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 
 	/**
-	* Don't output headers while proxying preload pages.
-	*
-	* @param {Doku_Event} $event - The DokuWiki event object.
-	* @param {mixed} $param  - The fifth argument to register_hook().
-	*/
-	public function block_headers(Doku_Event &$event, $param) {
-		global $INPUT;
-		if ($INPUT->str('fastwiki_preload_proxy'))
-			$event->preventDefault();
-	}
-
-
-	/**
 	* Hook into the pre-processor for the action handler to catch subscribe sub-actions before the action name changes.
 	*
 	* @param {Doku_Event} $event - The DokuWiki event object.
@@ -200,6 +187,36 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 
 	/**
+	* Don't output headers while proxying preload pages.
+	*
+	* @param {Doku_Event} $event - The DokuWiki event object.
+	* @param {mixed} $param  - The fifth argument to register_hook().
+	*/
+	public function block_headers(Doku_Event &$event, $param) {
+		global $INPUT;
+		if ($INPUT->str('fastwiki_preload_proxy'))
+			$event->preventDefault();
+	}
+
+
+	/**
+	* Some actions normally redirect. Block that for partials.
+	*
+	* @param {Doku_Event} $event - The DokuWiki event object.
+	* @param {mixed} $param  - The fifth argument to register_hook().
+	*/
+	function block_redirect(Doku_Event &$event, $param) {
+		global $ACT;
+		if ($this->m_inPartial) {
+			// Undo the action override, which sets $ACT to 'show.'
+			//if ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')
+				//$ACT = $event->data['preact'];
+			$event->preventDefault();
+		}
+	}
+
+
+	/**
 	* Handle the "partial" action, using the blank template to deliver nothing but the inner page content.
 	* This happens right before the template code would normally execute.
 	*
@@ -247,22 +264,5 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		global $ACT, $INPUT, $ID;
 		if (!$this->m_inPartial)
 			print '<div class="plugin_fastwiki_marker" style="display:none"></div>';
-	}
-
-
-	/**
-	* Some actions normally redirect. Block that for partials.
-	*
-	* @param {Doku_Event} $event - The DokuWiki event object.
-	* @param {mixed} $param  - The fifth argument to register_hook().
-	*/
-	function block_redirect(Doku_Event &$event, $param) {
-		global $ACT;
-		if ($this->m_inPartial) {
-			// Undo the action override, which sets $ACT to 'show.'
-			//if ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')
-				//$ACT = $event->data['preact'];
-			$event->preventDefault();
-		}
 	}
 }
