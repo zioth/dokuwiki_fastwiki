@@ -15,6 +15,7 @@ var plugin_fastwiki = (function($) {
 	var m_debug = document.location.host == 'localhost';
 	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 	var m_modeClassElt;
+	var m_prevTitle = '__UNDEFINED__';
 
 	/**
 	* The CPageCache class allows you to store pages in memory.
@@ -186,6 +187,7 @@ var plugin_fastwiki = (function($) {
 		m_initialId = m_content.attr('id');
 
 		m_modeClassElt = m_content.hasClass('dokuwiki') ? m_content : $(m_content.parents('.dokuwiki')[0] || document.body);
+		m_prevTitle = _getWikiTitle() || '__UNDEFINED__';
 
 		$(window).trigger('fastwiki:init', [m_viewMode]);
 
@@ -977,7 +979,6 @@ console.log('Boo scroll! '+[m_wasSecedit, m_isSecedit]);
 	*
 	* @param {Boolean} fromIdSwitch - Is this refresh triggered by an id switch?
 	*/
-	var m_prevTitle = _getWikiTitle();
 	function _refreshPageTitle(fromIdSwitch) {
 		var title = _getWikiTitle();
 
