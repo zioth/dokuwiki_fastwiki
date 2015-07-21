@@ -4,7 +4,8 @@
 var plugin_fastwiki = (function($) {
 	"use strict";
 
-	var m_viewMode, m_origViewMode, m_prevView; // show, edit, secedit, subscribe
+	var m_viewMode, m_origViewMode, m_prevView; // show, edit, subscribe etc
+	var m_isSecedit, m_wasSecedit;
 	var m_hasDraft;
 	var m_pageObjs = {}; // Edit objects
 	var m_content;
@@ -591,6 +592,14 @@ var plugin_fastwiki = (function($) {
 			}
 			else
 				_initEdit();
+
+			setTimeout(function() {
+				// Focusing the editor causes the browser to scroll, so wait until it's likely to be in view (after the page is rearranged) before calling this.
+				_focusEdit();
+
+				if (document.body.scrollTop > 0)
+					$('html,body').animate({scrollTop: Math.max(0, Math.floor($('.content_partial').offset().top)-20)+'px'}, 300);
+			}, 1);
 		},
 		revisions: function(params, extraData) {
 			$('.content_partial form').each(function(idx, form) {
@@ -727,18 +736,6 @@ var plugin_fastwiki = (function($) {
 			// Update links in the content area.
 			fixActionLinks($('.content_partial'));
 
-			setTimeout(function() {
-				if (action == 'edit' || action == 'draft') {
-					// Focusing the editor causes the browser to scroll, so wait until it's likely to be in view (after the page is rearranged) before calling this.
-					_focusEdit();
-
-					if (document.body.scrollTop > 0)
-						$('html,body').animate({scrollTop: Math.max(0, Math.floor(body.offset().top)-20)+'px'}, 300);
-				}
-				else
-					$('html,body').animate({scrollTop: 0}, 300);
-			}, 1);
-
 			// It's important to use m_viewMode here instead of action, because the callbacks can change the action.
 			_setBodyClass(m_viewMode, m_pageObjs.sectionForm ? "section" : null);
 
@@ -751,6 +748,12 @@ var plugin_fastwiki = (function($) {
 				dw_behaviour.init();
 
 			$(window).trigger('fastwiki:afterSwitch', [m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm, m_prevView]);
+
+			if (!m_isSecedit && !m_wasSecedit) {
+				setTimeout(function() {
+					$('html,body').animate({scrollTop: 0}, 300);
+				}, 1);
+			}
 		}
 
 		//TODO: On save, refresh cache.
@@ -826,7 +829,12 @@ var plugin_fastwiki = (function($) {
 		}
 
 		m_prevView = m_viewMode;
-		//m_viewMode = page=='save' ? 'show' : page;
+		// Edit: was=false, is=true
+		// Save: was=true, is=true
+		// Show: was=true, is=false
+		m_wasSecedit = m_isSecedit;
+		m_isSecedit = !!sectionForm || (m_wasSecedit && page=='save');
+console.log(''+[m_wasSecedit, m_isSecedit]);
 		m_viewMode = page;
 		if (!params)
 			params = {};
@@ -834,7 +842,6 @@ var plugin_fastwiki = (function($) {
 		dw_locktimer.clear();
 
 		// First switch back to the original mode, canceling other modes.
-		var wasSecedit = !!m_pageObjs.sectionForm;
 		_updatePageObjsOnSwitch();
 
 		// If we're back to the original mode, just clean up and quit.
@@ -844,7 +851,8 @@ var plugin_fastwiki = (function($) {
 
 			if (m_prevView != page) {
 				// Scroll to top.
-				if (!wasSecedit) {
+				if (!m_isSecedit && !m_wasSecedit) {
+console.log('Boo scroll! '+[m_wasSecedit, m_isSecedit]);
 					setTimeout(function() {
 						$('html,body').animate({scrollTop: 0}, 300);
 					}, 1);
@@ -856,19 +864,14 @@ var plugin_fastwiki = (function($) {
 			if (callback)
 				callback();
 		}
-		else {
-			// Sectionedit is special. Other special handlers are in m_actionEffects.
-			if ((page == 'draft' || page == 'edit') && sectionForm) {
-				var sectionParts = _getSection(sectionForm);
-				_action(page, params, callback, sectionParts, {sectionForm: sectionForm, sectionParts:sectionParts});
-
-				//var top = sectionForm.offset().top;
-				//	$('html,body').attr({scrollTop: top+'px'});
-			}
-			// Default action
-			else
-				_action(page, params, callback);
+		// Sectionedit is special. Other special handlers are in m_actionEffects.
+		else if ((page == 'draft' || page == 'edit') && sectionForm) {
+			var sectionParts = _getSection(sectionForm);
+			_action(page, params, callback, sectionParts, {sectionForm: sectionForm, sectionParts:sectionParts});
 		}
+		// Default action
+		else
+			_action(page, params, callback);
 	}
 
 
