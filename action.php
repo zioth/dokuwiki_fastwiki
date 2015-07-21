@@ -206,7 +206,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	public function instead_of_template(Doku_Event &$event, $param) {
 		if (!$this->m_inPartial)
 			return;
-		global $ACT, $INPUT, $ID;
+		global $ACT, $INPUT, $ID, $INFO;
 
 		$compareid = $INPUT->str('fastwiki_compareid');
 		if ($compareid && (auth_quickaclcheck($ID) != auth_quickaclcheck($compareid)))
@@ -220,10 +220,9 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
 
-			//TODO: RETEST SUBSCRIBE with $ACT revert commented out.
-			// Pretty sure the new code will break it, so instead I have to handle subscribe in a special way (by noting the preact or setting no_content).
-			// Move most of handle_action here.
-			// This was the right thing to do, but it didn't fix the revisions bug. Why? Because save usually comes with a redirect
+			if ($ACT == 'show')
+				$INFO['lastmod'] = @filemtime($INFO['filepath']);
+
 			tpl_content($ACT == 'show');
 		}
 
