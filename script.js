@@ -842,15 +842,17 @@ var plugin_fastwiki = (function($) {
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
 
-			// Scroll to top.
-			if (!wasSecedit) {
-				setTimeout(function() {
-					$('html,body').animate({scrollTop: 0}, 300);
-				}, 1);
-			}
+			if (m_prevView != page) {
+				// Scroll to top.
+				if (!wasSecedit) {
+					setTimeout(function() {
+						$('html,body').animate({scrollTop: 0}, 300);
+					}, 1);
+				}
 
-			_setBodyClass(page);
-			$(window).trigger('fastwiki:afterSwitch', [m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm]);
+				_setBodyClass(page);
+				$(window).trigger('fastwiki:afterSwitch', [m_pageObjs.sectionForm?'show':m_viewMode, !!m_pageObjs.sectionForm]);
+			}
 			if (callback)
 				callback();
 		}
