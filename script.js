@@ -11,7 +11,7 @@ var plugin_fastwiki = (function($) {
 	var m_initialId;
 	var m_curBaseUrl = document.location.pathname;
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize);
-	var m_debug = false;
+	var m_debug = document.location.host == 'localhost';
 	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 	var m_modeClassElt;
 

@@ -117,72 +117,10 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		global $ACT, $INPUT;
 
 		// For partials, we don't want output from subscribe actions -- just success/error messages.
-		if ($ACT == 'subscribe' && $INPUT->str('sub_action'))
+		if ($this->m_orig_act == 'subscribe' && $INPUT->str('sub_action'))
 			$this->m_no_content = true;
-
-		// Preload page content.
-		else if ($this->getConf('preload') && $ACT == 'fastwiki_preload') {
+		else if ($this->getConf('preload') && $this->m_orig_act == 'fastwiki_preload')
 			$event->preventDefault();
-			$maxpages = $this->getConf('preload_batchsize');
-			$pages = split(',', $INPUT->str('fastwiki_preload_pages'));
-			$count = min($maxpages, count($pages));
-			$requests = array();
-			$cookies = array();
-			foreach ($_COOKIE as $name=>$value)
-				array_push($cookies, $name . '=' . addslashes($value));
-
-			for ($x=0; $x<$count; $x++) {
-				$newid = cleanID($pages[$x]);
-				// ACL must be exactly the same.
-				if (page_exists($newid) && (auth_quickaclcheck($ID) == auth_quickaclcheck($newid))) {
-					// Because there's no way to call doku recursively, curl is the only way to get a fresh context.
-					// Without a fresh context, there's no easy way to get action plugins to run or TOC to render properly.
-					$ch = curl_init(DOKU_URL.'doku.php');
-					curl_setopt($ch, CURLOPT_POST, 1);
-					curl_setopt($ch, CURLOPT_POSTFIELDS, "id={$newid}&partial=1&fastwiki_preload_proxy=1");
-					curl_setopt($ch, CURLOPT_COOKIE, join('; ', $cookies));
-					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects
-					curl_setopt($ch, CURLOPT_HEADER, 0);
-					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-					array_push($requests, array($ch, $newid));
-				}
-			}
-
-			// Request URLs with multiple threads.
-			// TODO: This currently hangs. Enable the array_push above, and remove curl_exec, to test.
-			if (count($requests) > 0) {
-				$multicurl = curl_multi_init();
-				foreach ($requests as $req)
-					curl_multi_add_handle($multicurl, $req[0]);
-
-				$active = null;
-				// Strange loop becuase php 5.3.18 broke curl_multi_select
-				do {
-					do {
-						$mrc = curl_multi_exec($multicurl, $active);
-					} while ($mrc == CURLM_CALL_MULTI_PERFORM);
-					// Wait 10ms to fix a bug where multi_select returns -1 forever.
-					usleep(10000);
-				} while(curl_multi_select($multicurl) === -1);
-
-				while ($active && $mrc == CURLM_OK) {
-					if (curl_multi_select($multicurl) != -1) {
-						do {
-							$mrc = curl_multi_exec($multicurl, $active);
-						} while ($mrc == CURLM_CALL_MULTI_PERFORM);
-					}
-				}
-
-				foreach ($requests as $idx=>$req) {
-					if ($idx > 0)
-						print $this->m_preload_head;
-					print $req[1] . "\n";
-					echo curl_multi_getcontent($req[0]);
-					curl_multi_remove_handle($multicurl, $req[0]);
-				}
-				curl_multi_close($multicurl);
-			}
-		}
 	}
 
 
@@ -200,19 +138,14 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 
 	/**
-	* Some actions normally redirect. Block that for partials.
+	* Some actions, like save and subscribe, normally redirect. Block that for partials.
 	*
 	* @param {Doku_Event} $event - The DokuWiki event object.
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
 	function block_redirect(Doku_Event &$event, $param) {
-		global $ACT;
-		if ($this->m_inPartial) {
-			// Undo the action override, which sets $ACT to 'show.'
-			//if ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')
-				//$ACT = $event->data['preact'];
+		if ($this->m_inPartial)
 			$event->preventDefault();
-		}
 	}
 
 
@@ -227,6 +160,10 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		if (!$this->m_inPartial)
 			return;
 		global $ACT, $INPUT, $ID, $INFO;
+		$preload = $this->getConf('preload') && $this->m_orig_act == 'fastwiki_preload';
+
+		// Output error messages.
+		html_msgarea();
 
 		$compareid = $INPUT->str('fastwiki_compareid');
 		if ($compareid && (auth_quickaclcheck($ID) != auth_quickaclcheck($compareid)))
@@ -234,21 +171,24 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 		// Some partials only want an error message.
 		else if (!$this->m_no_content) {
+			// Update revision numbers for section edit, in case the file was saved.
+			if ($this->m_orig_act == 'save')
+				$INFO['lastmod'] = @filemtime($INFO['filepath']);
+
+			// Preload page content.
+			else if ($preload)
+				$this->_preload_pages();
+
 			// Section save. This won't work, unless I return new "range" inputs for all sections.
 //			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
 //			if ($secedit)
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
 
-			// Update revision numbers for section edit, in case the file was saved.
-			if ($this->m_orig_act == 'save')
-				$INFO['lastmod'] = @filemtime($INFO['filepath']);
 
-			tpl_content($ACT == 'show');
+			if (!$preload)
+				tpl_content($ACT == 'show');
 		}
-
-		// Output error messages.
-		html_msgarea();
 	}
 
 
@@ -264,5 +204,70 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		global $ACT, $INPUT, $ID;
 		if (!$this->m_inPartial)
 			print '<div class="plugin_fastwiki_marker" style="display:none"></div>';
+	}
+
+
+	protected function _preload_pages() {
+		global $INPUT, $_COOKIE, $ID;
+
+		$maxpages = $this->getConf('preload_batchsize');
+		$pages = split(',', $INPUT->str('fastwiki_preload_pages'));
+		$count = min($maxpages, count($pages));
+		$requests = array();
+		$cookies = array();
+		foreach ($_COOKIE as $name=>$value)
+			array_push($cookies, $name . '=' . addslashes($value));
+
+		for ($x=0; $x<$count; $x++) {
+			$newid = cleanID($pages[$x]);
+			// ACL must be exactly the same.
+			if (page_exists($newid) && (auth_quickaclcheck($ID) == auth_quickaclcheck($newid))) {
+				// Because there's no way to call doku recursively, curl is the only way to get a fresh context.
+				// Without a fresh context, there's no easy way to get action plugins to run or TOC to render properly.
+				$ch = curl_init(DOKU_URL.'doku.php');
+				curl_setopt($ch, CURLOPT_POST, 1);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, "id={$newid}&partial=1&fastwiki_preload_proxy=1");
+				curl_setopt($ch, CURLOPT_COOKIE, join('; ', $cookies));
+				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects
+				curl_setopt($ch, CURLOPT_HEADER, 0);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+				array_push($requests, array($ch, $newid));
+			}
+		}
+
+		// Request URLs with multiple threads.
+		// TODO: This currently hangs. Enable the array_push above, and remove curl_exec, to test.
+		if (count($requests) > 0) {
+			$multicurl = curl_multi_init();
+			foreach ($requests as $req)
+				curl_multi_add_handle($multicurl, $req[0]);
+
+			$active = null;
+			// Strange loop becuase php 5.3.18 broke curl_multi_select
+			do {
+				do {
+					$mrc = curl_multi_exec($multicurl, $active);
+				} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+				// Wait 10ms to fix a bug where multi_select returns -1 forever.
+				usleep(10000);
+			} while(curl_multi_select($multicurl) === -1);
+
+			while ($active && $mrc == CURLM_OK) {
+				if (curl_multi_select($multicurl) != -1) {
+					do {
+						$mrc = curl_multi_exec($multicurl, $active);
+					} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+				}
+			}
+
+			foreach ($requests as $idx=>$req) {
+				if ($idx > 0)
+					print $this->m_preload_head;
+				print $req[1] . "\n";
+				echo curl_multi_getcontent($req[0]);
+				curl_multi_remove_handle($multicurl, $req[0]);
+			}
+			curl_multi_close($multicurl);
+		}
 	}
 }
