@@ -58,7 +58,7 @@ if (!window.tpl_fastwiki_support) {
 					$("#dokuwiki__aside").css('display', mode=='show' ? '' : 'none');
 					m_showRow.toggle(mode != 'show');
 				}
-			})
+			});
 		}
 		// arctic
 		else if (JSINFO.fastwiki.templatename == 'arctic') {
@@ -67,10 +67,10 @@ if (!window.tpl_fastwiki_support) {
 				'fastwiki:init': function(e, mode) {
 					var buttonBars = $('#bar__bottom, #bar__top');
 					if ($('.button', buttonBars).length > 0)
-						m_utils.fixButtons($('.bar-left'), buttonBars, mode)
+						m_utils.fixButtons($('.bar-left'), buttonBars, mode);
 					else {
 						var pagetools = $('.bar-left');
-						m_editRow = $("a[href *= 'do=edit']", pagetools)
+						m_editRow = $("a[href *= 'do=edit']", pagetools);
 						m_showRow = $("a[href $= 'do=']", pagetools[0]);
 						if (m_showRow.length == 0) {
 							var url = $("a[href *= 'do=']")[0].href;
@@ -97,7 +97,7 @@ if (!window.tpl_fastwiki_support) {
 				'fastwiki:init': function(e, mode) {
 					var pagetools = $("ul.nav.navbar-nav");
 					m_utils.makeShowRowLI(pagetools, mode);
-					m_editRow = $($('li', pagetools)[0])
+					m_editRow = $($('li', pagetools)[0]);
 				},
 				'fastwiki:afterSwitch': function(e, mode, isSectionEdit, prevMode) {
 					m_showRow.toggle(mode != 'show');
@@ -122,7 +122,7 @@ if (!window.tpl_fastwiki_support) {
 					m_editRow = $('.action.edit', toolbox).parent();
 
 					// Button bar
-					m_utils.fixButtons($('.bar_bottom_content .bar-right'), $('.bar_bottom_content .bar-right'), mode)
+					m_utils.fixButtons($('.bar_bottom_content .bar-right'), $('.bar_bottom_content .bar-right'), mode);
 				},
 				'fastwiki:afterSwitch': function(e, mode, isSectionEdit, prevMode) {
 					$(".right_sidebar, .left_sidebar").css('display', mode=='edit' ? 'none' : '');

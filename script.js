@@ -2,6 +2,8 @@
 * The fastwiki plugin loads 'do' actions as AJAX requests when possible, to speed up the page. It also adds section editing.
 */
 var plugin_fastwiki = (function($) {
+	"use strict";
+
 	var m_viewMode, m_origViewMode, m_prevView; // show, edit, secedit, subscribe
 	var m_hasDraft;
 	var m_pageObjs = {}; // Edit objects
@@ -11,6 +13,7 @@ var plugin_fastwiki = (function($) {
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize);
 	var m_debug = false;
 	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
+	var m_modeClassElt;
 
 	/**
 	* The CPageCache class allows you to store pages in memory.
@@ -32,7 +35,7 @@ var plugin_fastwiki = (function($) {
 			if (p1)
 				_addPage(id, m_p1Queue, m_p1Ids, 1, m_maxP1Size);
 			_addPage(id, m_queue, m_pages, data, m_maxSize, m_p1Queue);
-		}
+		};
 		this.remove = function(id) {
 			if (id in m_pages) {
 				m_queue.splice(m_queue.indexOf(id), 1);
@@ -44,7 +47,7 @@ var plugin_fastwiki = (function($) {
 					delete m_p1Ids[id];
 				}
 			}
-		}
+		};
 		this.get = function(id) {
 			if (id in m_pages) {
 				// If it's accessed, it goes to the front.
@@ -53,17 +56,17 @@ var plugin_fastwiki = (function($) {
 				return m_pages[id];
 			}
 			return null;
-		}
+		};
 		this.has = function(id) {
 			return id in m_pages;
-		}
+		};
 
 		// Load initial cache, based on hrefs in an element
 		this.load = function(elt) {
 			var self = this;
 			var ids = {};
 			$('a', elt).each(function(idx, a) {
-				var href = a.getAttribute('href'); // Use getAttribute because some browsers make href appear to be cannonical.
+				var href = a.getAttribute('href'); // Use getAttribute because some browsers make href appear to be canonical.
 				if (href && href.indexOf('://') < 0) {
 					var numParams = href.split('=').length;
 					if (href.indexOf('id=') >= 0)
@@ -77,7 +80,7 @@ var plugin_fastwiki = (function($) {
 			});
 
 			var idsA = [];
-			for (id in ids)
+			for (var id in ids)
 				idsA.push(id);
 
 			if (idsA.length > m_maxSize) {
@@ -107,7 +110,7 @@ var plugin_fastwiki = (function($) {
 
 				function doPost(params) {
 					m_debug && console.log("Preloading " + params.fastwiki_preload_pages);
-					jQuery.post(DOKU_BASE + 'doku.php', params, function(data) {
+					$.post(DOKU_BASE + 'doku.php', params, function(data) {
 						var pages = data.split(JSINFO.fastwiki.preload_head);
 						for (var p=0; p<pages.length; p++) {
 							var line1End = pages[p].indexOf('\n');
@@ -126,7 +129,7 @@ var plugin_fastwiki = (function($) {
 					}, 'text');
 				}
 			}
-		}
+		};
 
 		function _pushToFront(id, queue) {
 			var idx = queue.indexOf(id);
@@ -218,7 +221,7 @@ var plugin_fastwiki = (function($) {
 		var supportedFields = {'do':1, rev:1, id:1};
 
 		// TODO: Support search: Hook search box, not just href. Note that supporting search changes doku behavior -- search results now have namespaces and origin pages.
-		//		Because of this, search will have to be a seperate config setting.
+		//		Because of this, search will have to be a separate config setting.
 		// TODO: Profile needs button hooks.
 
 		// Intercept all action (do=) urls, switching them to AJAX.
@@ -285,8 +288,8 @@ var plugin_fastwiki = (function($) {
 		if (JSINFO.fastwiki.secedit) {
 			$('.btn_secedit input[type=submit]', elt).click(function(e) {
 				e.preventDefault();
-				var form = $(this).parents('form')
-				load('edit', form, _formToObj(form))
+				var form = $(this).parents('form');
+				load('edit', form, _formToObj(form));
 			});
 		}
 
@@ -375,7 +378,7 @@ var plugin_fastwiki = (function($) {
 	/**
 	* Initialize a page edit. This must be called every time the editor is loaded.
 	* Most of this function was derived from core DokuWiki scripts, because Doku doesn't have init functions -- it does
-	* all initialization in global jQuery DOMConentReady scope.
+	* all initialization in global jQuery DOMContentReady scope.
 	*
 	* @private
 	*/
@@ -864,7 +867,7 @@ var plugin_fastwiki = (function($) {
 			else
 				_action(page, params, callback);
 		}
-	};
+	}
 
 
 	/**

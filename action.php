@@ -20,14 +20,15 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	* @param {Doku_Event_Handler} $controller DokuWiki's event controller object
 	*/
 	public function register(Doku_Event_Handler $controller) {
+		// Listed in order of when they happen.
 		$controller->register_hook('DOKUWIKI_STARTED', 'BEFORE', $this, 'handle_start');
 		$controller->register_hook('DOKUWIKI_STARTED', 'AFTER', $this, 'override_loadskin');
 		$controller->register_hook('ACTION_ACT_PREPROCESS', 'BEFORE', $this, 'handle_action_before');
-		$controller->register_hook('ACTION_ACT_PREPROCESS', 'AFTER', $this, 'handle_action');
-		$controller->register_hook('TPL_ACT_RENDER', 'BEFORE', $this, 'pre_render');
 		$controller->register_hook('TPL_ACT_UNKNOWN', 'BEFORE', $this, 'unknown_action');
-		$controller->register_hook('ACTION_SHOW_REDIRECT', 'BEFORE', $this, 'handle_redirect');
+		$controller->register_hook('ACTION_SHOW_REDIRECT', 'BEFORE', $this, 'block_redirect');
 		$controller->register_hook('ACTION_HEADERS_SEND', 'BEFORE', $this, 'block_headers');
+		$controller->register_hook('ACTION_HEADERS_SEND', 'AFTER', $this, 'instead_of_template');
+		$controller->register_hook('TPL_ACT_RENDER', 'BEFORE', $this, 'pre_render');
 	}
 
 
@@ -197,30 +198,33 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 
 	/**
 	* Handle the "partial" action, using the blank template to deliver nothing but the inner page content.
+	* This happens right before the template code would normally execute.
 	*
 	* @param {Doku_Event} $event - The DokuWiki event object.
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
-	public function handle_action(Doku_Event &$event, $param) {
+	public function instead_of_template(Doku_Event &$event, $param) {
 		if (!$this->m_inPartial)
 			return;
 		global $ACT, $INPUT, $ID;
 
-		// Compare permissions between the current page and the passed-in id.
 		$compareid = $INPUT->str('fastwiki_compareid');
 		if ($compareid && (auth_quickaclcheck($ID) != auth_quickaclcheck($compareid)))
 			echo 'PERMISSION_CHANGE';
 
 		// Some partials only want an error message.
 		else if (!$this->m_no_content) {
-			if ($ACT == 'show')
-				tpl_toc();
 			// Section save. This won't work, unless I return new "range" inputs for all sections.
 //			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
 //			if ($secedit)
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
-			tpl_content(false);
+
+			//TODO: RETEST SUBSCRIBE with $ACT revert commented out.
+			// Pretty sure the new code will break it, so instead I have to handle subscribe in a special way (by noting the preact or setting no_content).
+			// Move most of handle_action here.
+			// This was the right thing to do, but it didn't fix the revisions bug. Why? Because save usually comes with a redirect
+			tpl_content($ACT == 'show');
 		}
 
 		// Output error messages.
@@ -237,6 +241,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
 	public function pre_render(Doku_Event &$event, $param) {
+		global $ACT, $INPUT, $ID;
 		if (!$this->m_inPartial)
 			print '<div class="plugin_fastwiki_marker" style="display:none"></div>';
 	}
@@ -248,11 +253,12 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	* @param {Doku_Event} $event - The DokuWiki event object.
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
-	function handle_redirect(Doku_Event &$event, $param) {
+	function block_redirect(Doku_Event &$event, $param) {
 		global $ACT;
-		if ($this->m_inPartial && ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')) {
+		if ($this->m_inPartial) {
 			// Undo the action override, which sets $ACT to 'show.'
-			$ACT = $event->data['preact'];
+			//if ($event->data['preact'] == 'subscribe') || ($event->data['preact'] == 'save')
+				//$ACT = $event->data['preact'];
 			$event->preventDefault();
 		}
 	}
