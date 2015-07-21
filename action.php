@@ -13,6 +13,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	protected $m_inPartial = false;
 	protected $m_no_content = false;
 	protected $m_preload_head = '====47hsjwycv782nwncv8b920m8bv72jmdm3929bno3b3====';
+	protected $m_orig_act;
 
 	/**
 	* Register callback functions
@@ -39,7 +40,9 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	* @param {mixed} $param  - The fifth argument to register_hook().
 	*/
 	public function handle_start(Doku_Event &$event, $param) {
-		global $conf, $INPUT;
+		global $conf, $INPUT, $ACT;
+
+		$this->m_orig_act = $ACT;
 
 		if ($INPUT->str('partial') == '1') {
 			$this->m_inPartial = true;
@@ -220,7 +223,8 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 //				$this->render_text($INPUT->str('wikitext')); //+++ render_text isn't outputting anything.
 //			else
 
-			if ($ACT == 'show')
+			// Update revision numbers for section edit, in case the file was saved.
+			if ($this->m_orig_act == 'save')
 				$INFO['lastmod'] = @filemtime($INFO['filepath']);
 
 			tpl_content($ACT == 'show');
