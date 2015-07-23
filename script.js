@@ -11,8 +11,8 @@ var plugin_fastwiki = (function($) {
 	var m_content;
 	var m_initialId;
 	var m_curBaseUrl = document.location.pathname;
-	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize);
 	var m_debug = document.location.host == 'localhost';
+	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize, m_debug);
 	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 	var m_modeClassElt;
 	var m_prevTitle = '__UNDEFINED__';
@@ -24,13 +24,18 @@ var plugin_fastwiki = (function($) {
 	* @private
 	* @class
 	*/
-	function CPageCache(maxSize, batchSize) {
+	function CPageCache(maxSize, batchSize, debug) {
 		var m_queue = [];
 		var m_p1Queue = []; // Priority 1 queue. These can only be bumped by other p1 pages.
 		var m_pages = {}, m_p1Ids = {};
 		var m_maxSize = maxSize;
 		var m_batchSize = batchSize;
 		var m_maxP1Size = 10;
+
+		if (debug) {
+			window.cpagecache_pages = m_pages;
+			window.cpagecache_queue = m_queue;
+		}
 
 		// @param {Boolean} p1 - Pages the user actually visited are stored longer than preloads.
 		this.add = function(id, data, p1) {
@@ -176,7 +181,9 @@ var plugin_fastwiki = (function($) {
 		else {
 			var urlParams = _urlToObj(document.location.href);
 			m_viewMode = urlParams['do'] || 'show';
-			if (window.tpl_fastwiki_startmode_support && !(m_viewMode in tpl_fastwiki_startmode_support))
+			if (!m_supportedActions[m_viewMode])
+				m_viewMode = 'unsupported';
+			else if (window.tpl_fastwiki_startmode_support && !(m_viewMode in tpl_fastwiki_startmode_support))
 				m_viewMode = 'unsupported';
 		}
 		m_origViewMode = m_viewMode;
