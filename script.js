@@ -2,8 +2,6 @@
 * The fastwiki plugin loads 'do' actions as AJAX requests when possible, to speed up the page. It also adds section editing.
 */
 var plugin_fastwiki = (function($) {
-	"use strict";
-
 	var m_viewMode, m_origViewMode, m_prevView; // show, edit, subscribe etc
 	var m_isSecedit, m_wasSecedit;
 	var m_hasDraft;
