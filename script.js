@@ -841,7 +841,6 @@ var plugin_fastwiki = (function($) {
 		// Show: was=true, is=false
 		m_wasSecedit = m_isSecedit;
 		m_isSecedit = !!sectionForm || (m_wasSecedit && page=='save');
-console.log(''+[m_wasSecedit, m_isSecedit]);
 		m_viewMode = page;
 		if (!params)
 			params = {};
@@ -859,7 +858,6 @@ console.log(''+[m_wasSecedit, m_isSecedit]);
 			if (m_prevView != page) {
 				// Scroll to top.
 				if (!m_isSecedit && !m_wasSecedit) {
-console.log('Boo scroll! '+[m_wasSecedit, m_isSecedit]);
 					setTimeout(function() {
 						$('html,body').animate({scrollTop: 0}, 300);
 					}, 1);
