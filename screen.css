@@ -11,3 +11,7 @@
 	margin-top: -25px;
 	background-size: 200px 50px;
 }
+
+.content_partial {
+	clear: both;
+}
