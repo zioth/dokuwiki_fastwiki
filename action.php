@@ -179,6 +179,14 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 			else if ($preload)
 				$this->_preload_pages();
 
+			else {
+				//global $_COOKIE;
+				//$cookies = array();
+				//foreach ($_COOKIE as $name=>$value)
+				//	array_push($cookies, $name . '=' . addslashes($value));
+				//$cookies = join('; ', $cookies);
+				//echo "[{$_SERVER["REMOTE_USER"]}, $cookies]";
+			}
 			// Section save. This won't work, unless I return new "range" inputs for all sections.
 //			$secedit = $ACT == 'show' && $INPUT->str('target') == 'section' && ($INPUT->str('prefix') || $INPUT->str('suffix'));
 //			if ($secedit)
@@ -207,6 +215,9 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 	}
 
 
+	/**
+	* Preload pages based on URL parameters, and return them.
+	*/
 	protected function _preload_pages() {
 		global $INPUT, $_COOKIE, $ID;
 
@@ -217,57 +228,106 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		$cookies = array();
 		foreach ($_COOKIE as $name=>$value)
 			array_push($cookies, $name . '=' . addslashes($value));
+		$cookies = join('; ', $cookies);
 
+		$filtered = array();
 		for ($x=0; $x<$count; $x++) {
 			$newid = cleanID($pages[$x]);
 			// ACL must be exactly the same.
-			if (page_exists($newid) && (auth_quickaclcheck($ID) == auth_quickaclcheck($newid))) {
+			if (page_exists($newid) && (auth_quickaclcheck($ID) == auth_quickaclcheck($newid)))
+				$filtered[] = $newid;
+		}
+		$pages = $filtered;
+		$count = count($pages);
+
+		if (function_exists('curl_init')) {
+			for ($x=0; $x<$count; $x++) {
+				$newid = $pages[$x];
 				// Because there's no way to call doku recursively, curl is the only way to get a fresh context.
 				// Without a fresh context, there's no easy way to get action plugins to run or TOC to render properly.
 				$ch = curl_init(DOKU_URL.'doku.php');
 				curl_setopt($ch, CURLOPT_POST, 1);
 				curl_setopt($ch, CURLOPT_POSTFIELDS, "id={$newid}&partial=1&fastwiki_preload_proxy=1");
-				curl_setopt($ch, CURLOPT_COOKIE, join('; ', $cookies));
-				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects
+				curl_setopt($ch, CURLOPT_COOKIE, $cookies);
+				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects. TODO: Really? What about redirect plugin?
 				curl_setopt($ch, CURLOPT_HEADER, 0);
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 				array_push($requests, array($ch, $newid));
 			}
-		}
 
-		// Request URLs with multiple threads.
-		// TODO: This currently hangs. Enable the array_push above, and remove curl_exec, to test.
-		if (count($requests) > 0) {
-			$multicurl = curl_multi_init();
-			foreach ($requests as $req)
-				curl_multi_add_handle($multicurl, $req[0]);
+			// Request URLs with multiple threads.
+			// TODO: This currently hangs. Enable the array_push above, and remove curl_exec, to test.
+			if (count($requests) > 0) {
+				$multicurl = curl_multi_init();
+				foreach ($requests as $req)
+					curl_multi_add_handle($multicurl, $req[0]);
 
-			$active = null;
-			// Strange loop becuase php 5.3.18 broke curl_multi_select
-			do {
+				$active = null;
+				// Strange loop becuase php 5.3.18 broke curl_multi_select
 				do {
-					$mrc = curl_multi_exec($multicurl, $active);
-				} while ($mrc == CURLM_CALL_MULTI_PERFORM);
-				// Wait 10ms to fix a bug where multi_select returns -1 forever.
-				usleep(10000);
-			} while(curl_multi_select($multicurl) === -1);
-
-			while ($active && $mrc == CURLM_OK) {
-				if (curl_multi_select($multicurl) != -1) {
 					do {
 						$mrc = curl_multi_exec($multicurl, $active);
 					} while ($mrc == CURLM_CALL_MULTI_PERFORM);
-				}
-			}
+					// Wait 10ms to fix a bug where multi_select returns -1 forever.
+					usleep(10000);
+				} while(curl_multi_select($multicurl) === -1);
 
-			foreach ($requests as $idx=>$req) {
-				if ($idx > 0)
-					print $this->m_preload_head;
-				print $req[1] . "\n";
-				echo curl_multi_getcontent($req[0]);
-				curl_multi_remove_handle($multicurl, $req[0]);
+				while ($active && $mrc == CURLM_OK) {
+					if (curl_multi_select($multicurl) != -1) {
+						do {
+							$mrc = curl_multi_exec($multicurl, $active);
+						} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+					}
+				}
+
+				foreach ($requests as $idx=>$req) {
+					if ($idx > 0)
+						print $this->m_preload_head;
+					print $req[1] . "\n";
+					echo curl_multi_getcontent($req[0]);
+					curl_multi_remove_handle($multicurl, $req[0]);
+				}
+				curl_multi_close($multicurl);
 			}
-			curl_multi_close($multicurl);
+		}
+		// TODO: WORKING
+		// Fallback when curl isn't installed. Not parallelized, but it works!
+		// Note that this will not work with connections that do chunking.
+		//TODO DOCUMENT: Needs allow_url_fopen.
+		//TODO Replicate client's User-Agent, Accept-Language header. Copy COOKIE header instead of reconstructing.
+		//TODO: This is VERY slow.
+		else {
+			return;
+
+			global $_SERVER;
+			$hostname = $_SERVER['SERVER_NAME'];
+			for ($x=0; $x<$count; $x++) {
+				$newid = $pages[$x];
+
+				$headers = array(
+					"POST " . DOKU_URL . "doku.php HTTP/1.1",
+					"Host: " . $hostname,
+					"Cookie: " . $cookies,
+					"Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
+					//"Accept: text/plain, */*",
+					"", "");
+				$body = "id={$newid}&partial=1&fastwiki_preload_proxy=1";
+
+print implode("\r\n", $headers) . "id={$newid}&partial=1&fastwiki_preload_proxy=1\n\n\n";
+continue;
+				$remote = fsockopen($hostname, 80, $errno, $errstr, 5);
+				fwrite($remote, implode("\r\n", $headers) . $body);
+
+				$response = '';
+				while (!feof($remote))
+					$response .= fread($remote, 8192);
+				fclose($remote);
+
+				if ($x > 0)
+					print $this->m_preload_head;
+				print "$newid\n";
+				echo $response;
+			}
 		}
 	}
 }
