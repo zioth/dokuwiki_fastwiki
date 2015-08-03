@@ -63,7 +63,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'fastshow_same_ns' => $this->getConf('fastshow_same_ns'),
 				'fastshow_include' => $this->getConf('fastshow_include'),
 				'fastshow_exclude' => $this->getConf('fastshow_exclude'),
-				'preload'          => $this->getConf('preload'),
+				'preload'          => function_exists('curl_init') ? $this->getConf('preload') : false,
 				'preload_head'     => $this->m_preload_head,
 				'preload_batchsize'=> $this->getConf('preload_batchsize'),
 				'preload_per_page' => $this->getConf('preload_per_page'),
