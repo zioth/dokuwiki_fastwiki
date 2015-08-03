@@ -829,6 +829,7 @@ var plugin_fastwiki = (function($) {
 	* @param {Function=} callback - Called after the new page is loaded.
 	*/
 	function load(page, sectionForm, params, force, callback) {
+		//TODO: What if load() is called while another load() is active?
 		// If edit text has changed, confirm before switching views.
 		if ((m_viewMode == 'edit' || m_viewMode == 'draft') && (page != 'save' && page != 'preview') && m_pageObjs.content != $('#wiki__text').val()) {
 			if (!confirm(LANG.notsavedyet))

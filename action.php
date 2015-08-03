@@ -63,7 +63,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				'fastshow_same_ns' => $this->getConf('fastshow_same_ns'),
 				'fastshow_include' => $this->getConf('fastshow_include'),
 				'fastshow_exclude' => $this->getConf('fastshow_exclude'),
-				'preload'          => $this->getConf('preload'),
+				'preload'          => function_exists('curl_init') ? $this->getConf('preload') : false,
 				'preload_head'     => $this->m_preload_head,
 				'preload_batchsize'=> $this->getConf('preload_batchsize'),
 				'preload_per_page' => $this->getConf('preload_per_page'),
@@ -224,11 +224,8 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		$maxpages = $this->getConf('preload_batchsize');
 		$pages = split(',', $INPUT->str('fastwiki_preload_pages'));
 		$count = min($maxpages, count($pages));
+		$headers = getallheaders();
 		$requests = array();
-		$cookies = array();
-		foreach ($_COOKIE as $name=>$value)
-			array_push($cookies, $name . '=' . addslashes($value));
-		$cookies = join('; ', $cookies);
 
 		$filtered = array();
 		for ($x=0; $x<$count; $x++) {
@@ -245,10 +242,19 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				$newid = $pages[$x];
 				// Because there's no way to call doku recursively, curl is the only way to get a fresh context.
 				// Without a fresh context, there's no easy way to get action plugins to run or TOC to render properly.
+				/*
+				From include plugin. Interesting.
+				extract($page);
+				$id = $page['id'];
+				$exists = $page['exists'];
+				*/
 				$ch = curl_init(DOKU_URL.'doku.php');
 				curl_setopt($ch, CURLOPT_POST, 1);
 				curl_setopt($ch, CURLOPT_POSTFIELDS, "id={$newid}&partial=1&fastwiki_preload_proxy=1");
-				curl_setopt($ch, CURLOPT_COOKIE, $cookies);
+				curl_setopt($ch, CURLOPT_COOKIE, $headers['Cookie']);
+				curl_setopt($ch, CURLOPT_USERAGENT, $headers['User-Agent']);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept-Language: ' . $headers['Accept-Language']));
+				curl_setopt($ch, CURLOPT_REFERER, $headers['Referer']);
 				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); // Ignore redirects. TODO: Really? What about redirect plugin?
 				curl_setopt($ch, CURLOPT_HEADER, 0);
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -329,5 +335,17 @@ continue;
 				echo $response;
 			}
 		}
+	}
+}
+
+
+if (!function_exists('getallheaders')) {
+	function getallheaders() {
+		$headers = '';
+		foreach ($_SERVER as $name => $value) {
+			if (substr($name, 0, 5) == 'HTTP_')
+				$headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+		}
+		return $headers;
 	}
 }
