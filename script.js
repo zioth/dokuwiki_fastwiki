@@ -11,7 +11,7 @@ var plugin_fastwiki = (function($) {
 	var m_curBaseUrl = document.location.pathname;
 	var m_debug = document.location.host == 'localhost';
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize, m_debug);
-	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
+	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1, showtag:1};
 	var m_modeClassElt;
 	var m_prevTitle = '__UNDEFINED__';
 
@@ -940,7 +940,7 @@ var plugin_fastwiki = (function($) {
 		m_curBaseUrl = newpage;
 		m_viewMode = null;
 		load('show', null, {fastwiki_compareid:oldid}, true, function() {
-			// Use HTML5 history.pushState to make the browser's back and forward buttons work.
+			// Use HTML5 history.pushState to make the browser's back and forward buttons work as expected.
 			setTimeout(function() {
 				_refreshPageTitle(true);
 				if (!fromPopstate) {
