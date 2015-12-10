@@ -247,6 +247,8 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 				extract($page);
 				$id = $page['id'];
 				$exists = $page['exists'];
+
+				Or maybe open a new doku process with popen?
 				*/
 				$ch = curl_init(DOKU_URL.'doku.php');
 				curl_setopt($ch, CURLOPT_POST, 1);

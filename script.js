@@ -8,165 +8,11 @@ var plugin_fastwiki = (function($) {
 	var m_pageObjs = {}; // Edit objects
 	var m_content;
 	var m_initialId;
-	var m_curBaseUrl = document.location.pathname;
 	var m_debug = document.location.host == 'localhost';
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize, m_debug);
 	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1, showtag:1};
 	var m_modeClassElt;
-	var m_prevTitle = '__UNDEFINED__';
-
-	/**
-	* The CPageCache class allows you to store pages in memory.
-	*
-	* @param {int} maxSize - The maximum number of pages to store in memory.
-	* @private
-	* @class
-	*/
-	function CPageCache(maxSize, batchSize, debug) {
-		var m_queue = [];
-		var m_p1Queue = []; // Priority 1 queue. These can only be bumped by other p1 pages.
-		var m_pages = {}, m_p1Ids = {};
-		var m_maxSize = maxSize;
-		var m_batchSize = batchSize;
-		var m_maxP1Size = 10;
-
-		if (debug) {
-			window.cpagecache_pages = m_pages;
-			window.cpagecache_queue = m_queue;
-		}
-
-		// @param {Boolean} p1 - Pages the user actually visited are stored longer than preloads.
-		this.add = function(id, data, p1) {
-			if (p1)
-				_addPage(id, m_p1Queue, m_p1Ids, 1, m_maxP1Size);
-			_addPage(id, m_queue, m_pages, data, m_maxSize, m_p1Queue);
-		};
-		this.remove = function(id) {
-			if (id in m_pages) {
-				m_queue.splice(m_queue.indexOf(id), 1);
-				delete m_pages[id];
-
-				var p1Idx = m_p1Queue.indexOf(id);
-				if (p1Idx >= 0) {
-					m_queue.splice(p1Idx, 1);
-					delete m_p1Ids[id];
-				}
-			}
-		};
-		this.get = function(id) {
-			if (id in m_pages) {
-				// If it's accessed, it goes to the front.
-				_pushToFront(id, m_queue);
-				_pushToFront(id, m_p1Queue);
-				return m_pages[id];
-			}
-			return null;
-		};
-		this.has = function(id) {
-			return id in m_pages;
-		};
-
-		// Load initial cache, based on hrefs in an element
-		this.load = function(elt) {
-			var self = this;
-			var ids = {};
-			$('a', elt).each(function(idx, a) {
-				var href = a.getAttribute('href'); // Use getAttribute because some browsers make href appear to be canonical.
-				if (href && href.indexOf('://') < 0) {
-					var numParams = href.split('=').length;
-					if (href.indexOf('id=') >= 0)
-						numParams--;
-					if (numParams == 1) {
-						var pageinfo = _getSwitchId(href);
-						if (pageinfo && !m_cache.has(pageinfo.id))
-							ids[pageinfo.id] = 1;
-					}
-				}
-			});
-
-			var idsA = [];
-			for (var id in ids)
-				idsA.push(id);
-
-			if (idsA.length > m_maxSize) {
-				// There are so many links that the chances of preloading the right one are basically zero.
-				// TODO: Sort by vertical position and preload near the top of the page?
-			}
-			else if (idsA.length > 0) {
-				if (idsA.length > m_maxSize)
-					idsA.length = m_maxSize;
-
-				// Split pages into at least 4 batches if possible.
-				var batchSize = m_batchSize;
-				if (idsA.length / batchSize < 4)
-					batchSize = Math.ceil(idsA.length / 4);
-				var requests = [];
-				for (var x=0; x<Math.ceil(idsA.length / batchSize); x++) {
-					var sublist = idsA.slice(x*batchSize, (x+1)*batchSize);
-					var params = {partial: 1};
-					params['do'] = 'fastwiki_preload';
-					params.fastwiki_preload_pages = sublist.join(',');
-					requests.push(params);
-				}
-
-				// Make the first 4 requests. Limit to 4 so as not to monopolize all the browser's sockets (there are 6 in modern browsers).
-				for (var x=0; x<Math.min(4, requests.length); x++)
-					doPost(requests.shift());
-
-				function doPost(params) {
-					m_debug && console.log("Preloading " + params.fastwiki_preload_pages);
-					$.post(DOKU_BASE + 'doku.php', params, function(data) {
-						var pages = data.split(JSINFO.fastwiki.preload_head);
-						for (var p=0; p<pages.length; p++) {
-							var line1End = pages[p].indexOf('\n');
-							var id = pages[p].substr(0, line1End);
-							pages[p] = pages[p].substr(line1End+1);
-							m_debug && console.log("Loaded " + [id, pages[p].length]);
-							// If a bug causes a whole page to be loaded, don't cache it.
-							if (pages[p].indexOf('<body') >= 0)
-								m_debug && console.log("ERROR: Body found!");
-							else
-								self.add(id, pages[p]);
-						}
-
-						if (requests.length > 0)
-							doPost(requests.shift());
-					}, 'text');
-				}
-			}
-		};
-
-		function _pushToFront(id, queue) {
-			var idx = queue.indexOf(id);
-			if (idx >= 0) {
-				queue.splice(idx, 1);
-				queue.push(id);
-			}
-		}
-		function _addPage(id, queue, hash, data, maxSize, exclude) {
-			if (id in hash)
-				_pushToFront(id, queue);
-			else if (data) {
-				if (queue.length > maxSize) {
-					if (exclude) {
-						for (var x=0; x<queue.length; x++) {
-							if (!exclude[queue[x]]) {
-								delete hash[queue[x]];
-								queue.splice(x, 1);
-							}
-						}
-					}
-					else
-						delete hash[queue.shift()];
-				}
-				queue.push(id);
-			}
-
-			if (data)
-				hash[id] = data;
-		}
-	}
-
+	var m_browserHistory = new CBrowserHistory();
 
 
 	//////////
@@ -192,7 +38,6 @@ var plugin_fastwiki = (function($) {
 		m_initialId = m_content.attr('id');
 
 		m_modeClassElt = m_content.hasClass('dokuwiki') ? m_content : $(m_content.parents('.dokuwiki')[0] || document.body);
-		m_prevTitle = _getWikiTitle() || '__UNDEFINED__';
 
 		$(window).trigger('fastwiki:init', [m_viewMode]);
 
@@ -203,12 +48,8 @@ var plugin_fastwiki = (function($) {
 		if (JSINFO.fastwiki.fastshow && (m_origViewMode != 'show' || !window.history || !history.pushState))
 			JSINFO.fastwiki.fastshow = false;
 
-		if (JSINFO.fastwiki.fastshow) {
-			window.addEventListener('popstate', function(e) {
-				document.title = e.state.title;
-				_switchBasePath(e.state.url, true);
-			});
-		}
+		if (JSINFO.fastwiki.fastshow)
+			m_browserHistory.init(load);
 	});
 
 
@@ -272,7 +113,7 @@ var plugin_fastwiki = (function($) {
 				// TODO Document: Doesn't work with cannonical url feature.
 				var href = this.getAttribute('href'); // Use getAttribute because some browsers make href appear to be cannonical.
 				if (href && href.indexOf('://') < 0) {
-					if (href.match(_getSelfRefRegex())) {
+					if (href.match(m_browserHistory.getSelfRefRegex())) {
 						load('show');
 						e.preventDefault();
 					}
@@ -282,8 +123,10 @@ var plugin_fastwiki = (function($) {
 							numParams--;
 						if (numParams == 1) {
 							//TODO: What about pages that aren't in the wiki at all? Forums etc. Use a config field?
-							if (_switchBasePath(href))
+							if (m_browserHistory.switchBasePath(href)) {
+								m_viewMode = null;
 								e.preventDefault();
+							}
 						}
 					}
 				}
@@ -294,7 +137,7 @@ var plugin_fastwiki = (function($) {
 
 		// Inline section edit
 		if (JSINFO.fastwiki.secedit) {
-			$('.btn_secedit input[type=submit]', elt).click(function(e) {
+			$('.btn_secedit input[type=submit], .btn_secedit button', elt).click(function(e) {
 				e.preventDefault();
 				var form = $(this).parents('form');
 				load('edit', form, _formToObj(form));
@@ -302,7 +145,7 @@ var plugin_fastwiki = (function($) {
 		}
 
 		if (JSINFO.fastwiki.preload)
-			m_cache.load(elt);
+			m_cache.load(elt, m_browserHistory);
 	}
 
 
@@ -663,7 +506,7 @@ var plugin_fastwiki = (function($) {
 				$('.content_partial').remove();
 				// The html() transfer above lost dynamic events. Reset.
 				fixActionLinks($('.content_initial'));
-				_refreshPageTitle(false);
+				m_browserHistory.refreshPageTitle(false);
 
 				load('show');
 				// These two lines are from dw_page.init()
@@ -791,12 +634,12 @@ var plugin_fastwiki = (function($) {
 		}
 
 		params.partial = 1;
-		jQuery[!params['do'] || params['do']=='show' ? 'get' : 'post'](m_curBaseUrl, params, function(data) {
+		jQuery[!params['do'] || params['do']=='show' ? 'get' : 'post'](m_browserHistory.getBaseUrl(), params, function(data) {
 			// Special error conditions
 			if (data == 'PERMISSION_CHANGE') {
 				delete params.partial;
 				delete params.fastwiki_compareid;
-				var url = m_curBaseUrl + '?' + $.param(params);
+				var url = m_browserHistory.getBaseUrl() + '?' + $.param(params);
 				document.location.href = url;
 			}
 			else
@@ -881,131 +724,13 @@ var plugin_fastwiki = (function($) {
 	}
 
 
-	/**
-	* Get the id of the page, or null if switching to that page doesn't support fastshow.
-	*
-	* @param {String} newpage - The new page URL.
-	* @param {Boolean} force - Ignore fastshow rules.
-	* @return {Object} with two members: id (page id) and ns (namespace).
-	*/
-	function _getSwitchId(newpage, force) {
-		//TODO Bug: Doesn't work with httpd mode unless doku is in the base directory. Could fix by assuming same namespace.
-		var pageid = newpage.substr(1).replace(/.*doku.php(\?id=|\/)/, '').replace(/\//g, ':');
-		var ns = pageid.replace(/:[^:]+$/, '');
-
-		if (!force) {
-			if (JSINFO.fastwiki.fastshow_same_ns && ns != JSINFO.namespace)
-				return false;
-			var incl = JSINFO.fastwiki.fastshow_include, excl = JSINFO.fastwiki.fastshow_exclude;
-			// Include namespaces and pages
-			if (incl && !pageid.match('^(' + incl.split(/\s*,\s*/).join('|') + ')'))
-				return false;
-			// Exclude namespaces and pages
-			if (excl && pageid.match('^(' + excl.split(/\s*,\s*/).join('|') + ')'))
-				return false;
-		}
-
-		return {id:pageid, ns:ns};
-	}
-
-
-	/**
-	* Switch to a different page id (fastshow feature).
-	*
-	* @param {String} newpage - The URL of the new page.
-	* @param {Boolean=false} fromPopstate - True if function was called in the onpopstate event.
-	*/
-	function _switchBasePath(newpage, fromPopstate) {
-		//TODO Bug: Doesn't work with httpd mode unless doku is in the base directory. Could fix by assuming same namespace.
-		var pageinfo = _getSwitchId(newpage);
-		if (!pageinfo)
-			return false;
-
-		// Update JSINFO
-		var oldid = JSINFO.id;
-		JSINFO.id = pageinfo.id;
-		JSINFO.namespace = pageinfo.ns;
-
-		// Replace 'id' fields.
-		$('form').each(function(idx, form) {
-			if ($(form).find('input[name="do"]').length > 0) {
-				var input = $('input[name="id"]', form);
-				if (input.val() == oldid)
-					input.val(pageinfo.id);
-			}
-		});
-
-
-		var prevPage = m_curBaseUrl;
-		m_curBaseUrl = newpage;
-		m_viewMode = null;
-		load('show', null, {fastwiki_compareid:oldid}, true, function() {
-			// Use HTML5 history.pushState to make the browser's back and forward buttons work as expected.
-			setTimeout(function() {
-				_refreshPageTitle(true);
-				if (!fromPopstate) {
-					history.replaceState({url: prevPage, title: document.title}, "", prevPage);
-					history.pushState({url: newpage, title:document.title}, "", newpage);
-				}
-
-				$(window).trigger('fastwiki:afterIdChange', [prevPage, newpage]);
-			}, 1); // setTimeout so it happens after all other page manipulations. This won't be needed if I do history in _action().
-		});
-
-		return true;
-	}
-
-
-	/**
-	* Get a regex which matches the current page id in a url.
-	*
-	* @returns {RegExp}
-	*/
-	function _getSelfRefRegex() {
-		return new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$|^#$');
-	}
-
-
-	function _getWikiTitle() {
-		var titleElt;
-		$('h1, h2, h3, h4, h5, h6', $('.content_initial')).each(function(idx, elt) {
-			if (elt.className.indexOf('sectionedit') >= 0) {
-				titleElt = elt;
-				return false; // Break out of each().
-			}
-		});
-		return titleElt ? $(titleElt).text() : '';
-	}
-
-
-	/**
-	* Refresh the page title based on the top heading.
-	*
-	* @param {Boolean} fromIdSwitch - Is this refresh triggered by an id switch?
-	*/
-	function _refreshPageTitle(fromIdSwitch) {
-		var title = _getWikiTitle();
-
-		document.title = title;
-
-		//TODO: Close, but I need to get the prevTitle from h1,h2,etc like above.
-		if (!fromIdSwitch) {
-			$('a').each(function(idx, elt) {
-				var $this = $(this);
-				var href = $this.attr('href');
-				if (href && href.match(_getSelfRefRegex()) && $this.text() == m_prevTitle)
-					$this.text(document.title);
-			});
-		}
-
-		m_prevTitle = title;
-	}
-
-
 	return {
 		load: load,
 		fixActionLinks: fixActionLinks
 	};
+
+	/* DOKUWIKI:include pagecache.js */
+	/* DOKUWIKI:include history.js */
 })(jQuery);
 
 /* DOKUWIKI:include templates.js */
