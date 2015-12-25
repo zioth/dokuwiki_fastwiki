@@ -734,3 +734,4 @@ var plugin_fastwiki = (function($) {
 })(jQuery);
 
 /* DOKUWIKI:include templates.js */
+/* DOKUWIKI:include plugins.js */
