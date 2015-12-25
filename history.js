@@ -52,7 +52,7 @@ function CBrowserHistory() {
 			self.switchBasePath(e.state.url);
 			//TODO: Set m_viewMode=null with a callback. Put current view mode in the state. Generalize with a getPageState() and pageStateCallback()
 		});
-	}
+	};
 
 
 	/**
@@ -80,7 +80,7 @@ function CBrowserHistory() {
 		}
 
 		return {id:pageid, ns:ns};
-	}
+	};
 
 
 	/**
@@ -90,7 +90,7 @@ function CBrowserHistory() {
 	*/
 	this.getSelfRefRegex = function() {
 		return new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$|^#$');
-	}
+	};
 
 
 	/**
@@ -98,7 +98,7 @@ function CBrowserHistory() {
 	*/
 	this.getBaseUrl = function() {
 		return m_curBaseUrl;
-	}
+	};
 
 
 	/**
@@ -154,7 +154,7 @@ function CBrowserHistory() {
 		});
 
 		return true;
-	}
+	};
 
 
 	/**
@@ -178,5 +178,5 @@ function CBrowserHistory() {
 		}
 
 		m_prevTitle = title;
-	}
+	};
 }
