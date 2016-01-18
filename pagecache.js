@@ -92,10 +92,6 @@ function CPageCache(maxSize, batchSize, debug) {
 				requests.push(params);
 			}
 
-			// Make the first 4 requests. Limit to 4 so as not to monopolize all the browser's sockets (there are 6 in modern browsers).
-			for (var x=0; x<Math.min(4, requests.length); x++)
-				doPost(requests.shift());
-
 			function doPost(params) {
 				m_debug && console.log("Preloading " + params.fastwiki_preload_pages);
 				$.post(DOKU_BASE + 'doku.php', params, function(data) {
@@ -115,7 +111,11 @@ function CPageCache(maxSize, batchSize, debug) {
 					if (requests.length > 0)
 						doPost(requests.shift());
 				}, 'text');
-			};
+			}
+
+			// Make the first 4 requests. Limit to 4 so as not to monopolize all the browser's sockets (there are 6 in modern browsers).
+			for (var x=0; x<Math.min(4, requests.length); x++)
+				doPost(requests.shift());
 		}
 	};
 

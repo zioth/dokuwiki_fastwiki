@@ -12,7 +12,7 @@ function CBrowserHistory() {
 	function base(url, withId) {
 		if (withId) {
 			var id = url.replace(/.*id=([^&]+).*/, '$1');
-			if (id.match(/^[a-zA-Z0-9_-:]+$/))
+			if (id.match(/^[a-zA-Z0-9_\-:]+$/))
 				return url.replace(/\?.*/, '') + '?id='+id;
 		}
 		return url.replace(/\?.*/, '');
@@ -129,7 +129,7 @@ function CBrowserHistory() {
 
 		// TODO: Need to have newpage in non-switch case to get history for other actions.
 		m_curBaseUrl = base(newpage); //TODO: Always?
-		var prevPage = document.location.href;
+		var prevpage = document.location.href;
 
 		m_loadPageFunc('show', null, {fastwiki_compareid:oldid}, true, function() {
 			setTimeout(function() {
