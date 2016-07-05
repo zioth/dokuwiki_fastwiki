@@ -220,7 +220,21 @@ var plugin_fastwiki = (function($) {
 			var sel = DWgetSelection($edit_text[0]);
 			sel.start = 0;
 			sel.end = 0;
-			DWsetSelection(sel);
+			try {
+				DWsetSelection(sel);
+			}
+			catch(e) {
+				console.warn('DWsetSelection failed. Trying again in 500ms.');
+				// DWsetSelection can sometimes fail in FireFox. Try again later.
+				setTimeout(function() {
+					try {
+						DWsetSelection(sel);
+					}
+					catch(e) {
+						console.warn('DWsetSelection failed.')
+					}
+				}, 500);
+			}
 			$edit_text.focus();
 		}
 	}
