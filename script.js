@@ -234,6 +234,11 @@ var plugin_fastwiki = (function($) {
 	* @private
 	*/
 	function _initEdit() {
+		// Comatibility: before 2016-06-26a
+		if (!window.doku_summaryCheck) {
+			window.doku_summaryCheck = window.summaryCheck;
+		}
+
 		dw_editor.init();
 		dw_locktimer.init(JSINFO.fastwiki.locktime, JSINFO.fastwiki.usedraft);
 
@@ -246,7 +251,7 @@ var plugin_fastwiki = (function($) {
 
 		$editform.on("change keydown", function(e) {
 			window.textChanged = true;
-			summaryCheck();
+			doku_summaryCheck();
 		});
 
 		m_pageObjs.content = $edit_text.val();
@@ -271,9 +276,9 @@ var plugin_fastwiki = (function($) {
 			}
 		});
 
-		$('#edit__summary').on("change keyup", summaryCheck);
+		$('#edit__summary').on("change keyup", doku_summaryCheck);
 		if (textChanged)
-			summaryCheck();
+			doku_summaryCheck();
 
 		// From toolbar.js
 		initToolbar('tool__bar','wiki__text',toolbar);
