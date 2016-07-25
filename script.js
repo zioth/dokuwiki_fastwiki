@@ -224,14 +224,12 @@ var plugin_fastwiki = (function($) {
 				DWsetSelection(sel);
 			}
 			catch(e) {
-				console.warn('DWsetSelection failed. Trying again in 500ms.');
 				// DWsetSelection can sometimes fail in FireFox. Try again later.
 				setTimeout(function() {
 					try {
 						DWsetSelection(sel);
 					}
 					catch(e) {
-						console.warn('DWsetSelection failed.')
 					}
 				}, 500);
 			}

@@ -89,7 +89,17 @@ function CBrowserHistory() {
 	* @returns {RegExp}
 	*/
 	this.getSelfRefRegex = function() {
-		return new RegExp('doku\\.php\\?id='+JSINFO.id+'$|\\/'+JSINFO.id.replace(/:/g, '/')+'$|^#$');
+		var path = document.location.pathname;
+		var idPath = JSINFO.id.replace(/:/g, '/');
+
+		// The non-httpd version can be tested unambiguously.
+		if (path.indexOf('doku.php') >= 0)
+			return new RegExp('doku\\.php\\?id='+JSINFO.id+'$|doku\\.php/'+idPath+'$');
+
+		// Absolute path with and without domain.
+		// TODO: While it won't apply to doku-generated links, for completeness we should also look for relative paths. This would require
+		//       knowing the configured base path, and knowing about any <base> tags.
+		return new RegExp('^'+path+'$|://'+document.location.host+path+'$');
 	};
 
 
