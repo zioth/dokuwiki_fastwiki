@@ -137,7 +137,7 @@ var plugin_fastwiki = (function($) {
 
 		// Inline section edit
 		if (JSINFO.fastwiki.secedit) {
-			$('.btn_secedit input[type=submit], .btn_secedit button', elt).click(function(e) {
+			$('.editbutton_section .btn_secedit input[type=submit], .editbutton_section .btn_secedit button', elt).click(function(e) {
 				e.preventDefault();
 				var form = $(this).parents('form');
 				load('edit', form, _formToObj(form));
