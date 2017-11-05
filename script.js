@@ -78,7 +78,7 @@ var plugin_fastwiki = (function($) {
 			var curPathId = JSINFO.id.replace(/:/g, '/');
 			var aPathId = this.href.replace(/\?.*$/, '').replace(/:/g, '/');
 			// The magic only works if the do= is for the current page.
-			if (curPathId == aPathId) {
+			if (aPathId.substr(-curPathId.length) == curPathId) {
 				var params = _urlToObj(this.href);
 				if (!params['do'])
 					params['do'] = 'show';
