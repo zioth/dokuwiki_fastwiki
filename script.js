@@ -75,13 +75,18 @@ var plugin_fastwiki = (function($) {
 
 		// Intercept all action (do=) urls, switching them to AJAX.
 		$('a[href *= "?do="]', elt).click(function(e) {
-			var params = _urlToObj(this.href);
-			if (!params['do'])
-				params['do'] = 'show';
+			var curPathId = JSINFO.id.replace(/:/g, '/');
+			var aPathId = this.href.replace(/\?.*$/, '').replace(/:/g, '/');
+			// The magic only works if the do= is for the current page.
+			if (curPathId == aPathId) {
+				var params = _urlToObj(this.href);
+				if (!params['do'])
+					params['do'] = 'show';
 
-			if (params['do'] in m_supportedActions) {
-				e.preventDefault();
-				load(params['do'], null, params);
+				if (params['do'] in m_supportedActions) {
+					e.preventDefault();
+					load(params['do'], null, params);
+				}
 			}
 		});
 
