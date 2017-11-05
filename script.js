@@ -10,7 +10,12 @@ var plugin_fastwiki = (function($) {
 	var m_initialId;
 	var m_debug = document.location.host == 'localhost';
 	var m_cache = new CPageCache(JSINFO.fastwiki.preload_per_page, JSINFO.fastwiki.preload_batchsize, m_debug);
-	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1, showtag:1};
+	// Unsupported actions, and reason for lack of support:
+	// login, register and resendpwd: Templates, plugins or future versions of dokuwiki might make them https.
+	// admin: Admin can change things outside the main content area.
+	// conflict, denied and locked: I don't know what they do.
+	// showtag: It doesn't work properly with unicode tags.
+	var m_supportedActions = {'':1, edit:1, draft:1, history:1, recent:1, revisions:1, show:1, subscribe:1, backlink:1, index:1, profile:1, media:1, diff:1, save:1};
 	var m_modeClassElt;
 	var m_browserHistory = new CBrowserHistory();
 
@@ -62,10 +67,6 @@ var plugin_fastwiki = (function($) {
 		if (m_origViewMode == 'unsupported')
 			return;
 
-		// Unsupported actions, and reason for lack of support:
-		// login, register and resendpwd: Templates, plugins or future versions of dokuwiki might make them https.
-		// admin: Admin can change things outside the main content area.
-		// conflict, denied and locked: I don't know what they do.
 		var formActions = {search: 1};
 		var supportedFields = {'do':1, rev:1, id:1};
 
