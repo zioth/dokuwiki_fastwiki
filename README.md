@@ -1,5 +1,10 @@
 # Fastwiki plugin for DokuWiki
 
+This plugin for DokuWiki makes your wiki experience much smoother and faster, with features such as:
+* Inline section editing.
+* Changing page modes without reloading, notably including edit, preview and save.
+* (experimental) Switch pages without reloading.
+
 Documentation may be found at: http://dokuwiki.org/plugin:fastwiki
 
 This plugin must be installed in lib/plugins/fastwiki. It will not work otherwise.
