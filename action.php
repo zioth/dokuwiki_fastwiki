@@ -222,7 +222,7 @@ class action_plugin_fastwiki extends DokuWiki_Action_Plugin {
 		global $INPUT, $_COOKIE, $ID;
 
 		$maxpages = $this->getConf('preload_batchsize');
-		$pages = split(',', $INPUT->str('fastwiki_preload_pages'));
+		$pages = explode(',', $INPUT->str('fastwiki_preload_pages'));
 		$count = min($maxpages, count($pages));
 		$headers = getallheaders();
 		$requests = array();

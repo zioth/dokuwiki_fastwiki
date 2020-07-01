@@ -15,3 +15,7 @@
 .content_partial {
 	clear: both;
 }
+
+.mode_edit .content .row > .col-xs-12 #dokuwiki__content::before {
+	display: none
+}

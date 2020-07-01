@@ -46,6 +46,7 @@ if (!window.tpl_fastwiki_support) {
 
 		// dokuwiki, starter, greensteel
 		if ($('#dokuwiki__pagetools').length > 0) {
+			var hasSidebar = $('.showSidebar.hasSidebar').length > 0;
 			// Only show is supported as a start mode, because otherwise, we'd have to add pagetools for each action and check for actions being allowed.
 			window.tpl_fastwiki_startmode_support = {show:1};
 			$(window).on({
@@ -54,8 +55,10 @@ if (!window.tpl_fastwiki_support) {
 				},
 				'fastwiki:afterSwitch': function(e, mode, isSectionEdit, prevMode) {
 					// The dokuwiki template hides the sidebar in non-show modes
-					$("#dokuwiki__top").toggleClass("showSidebar hasSidebar", mode=='show');
-					$("#dokuwiki__aside").css('display', mode=='show' ? '' : 'none');
+					if (hasSidebar) {
+						$("#dokuwiki__top").toggleClass("showSidebar hasSidebar", mode == 'show');
+						$("#dokuwiki__aside").css('display', mode == 'show' ? '' : 'none');
+					}
 					m_showRow.toggle(mode != 'show');
 				}
 			});
