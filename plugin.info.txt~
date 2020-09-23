@@ -1,8 +1,0 @@
-base    fastwiki
-author  Eli Fenton
-email
-date    2017-11-07
-name    Fastwiki Plugin
-desc    Speed up DokuWiki with AJAX page loads, and inline previews and sectionedit.
-url     https://www.dokuwiki.org/plugin:fastwiki
-

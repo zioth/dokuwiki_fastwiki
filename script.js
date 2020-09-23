@@ -565,7 +565,8 @@ var plugin_fastwiki = (function($) {
 		function cb(data) {
 			$('.content_partial, .message_partial').remove();
 			$('.content_initial').attr('id', m_initialId);
-			var body = $('<div class="content_partial"></div>').append(data);
+			var tagname = $('.content_initial')[0].tagName.toLowerCase();
+			var body = $('<' + tagname + ' class="content_partial"></' + tagname + '>').append(data);
 
 			//TODO: I don't like having to put special case code here. Is there any better place to put it? m_actionEffects is too late.
 			if (insertLoc && action=='edit') {
