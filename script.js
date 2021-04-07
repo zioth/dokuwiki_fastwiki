@@ -268,6 +268,20 @@ var plugin_fastwiki = (function($) {
 			return;
 
 		var $edit_text = $('#wiki__text');
+		if ($edit_text.length > 0) {
+			if($edit_text.attr('readOnly')) {
+				return;
+			}
+
+			// set focus and place cursor at the start
+			var sel = DWgetSelection($edit_text[0]);
+			sel.start = 0;
+			sel.end   = 0;
+			DWsetSelection(sel);
+			$edit_text.trigger('focus');
+
+			doku_edit_text_content = $edit_text.val();
+		}
 
 		$editform.on("change keydown", function(e) {
 			window.textChanged = true;
@@ -303,6 +317,13 @@ var plugin_fastwiki = (function($) {
 		// From toolbar.js
 		initToolbar('tool__bar','wiki__text',toolbar);
 		$('#tool__bar').attr('role', 'toolbar');
+
+		// Work-around for https://github.com/splitbrain/dokuwiki/issues/3466
+		setTimeout(function() {
+			dw_linkwiz.$wiz = null;
+			$('#link__wiz').remove();
+			dw_linkwiz.init($('[aria-controls="link__wiz"]'));
+		}, 0);
 
 		// reset change memory var on submit
 		$('#edbtn__save').click(function(e) {
