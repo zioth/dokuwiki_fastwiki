@@ -315,14 +315,19 @@ var plugin_fastwiki = (function($) {
 			doku_summaryCheck();
 
 		// From toolbar.js
-		initToolbar('tool__bar','wiki__text',toolbar);
+		initToolbar('tool__bar','wiki__text', toolbar);
 		$('#tool__bar').attr('role', 'toolbar');
 
 		// Work-around for https://github.com/splitbrain/dokuwiki/issues/3466
+		// See lib/scripts/linkwiz.js:init
 		setTimeout(function() {
 			dw_linkwiz.$wiz = null;
 			$('#link__wiz').remove();
+			// Position is usually calculated from the editor, which breaks if the editor has a positioned parent.
+			// Instead, calculate based on the button.
 			dw_linkwiz.init($('[aria-controls="link__wiz"]'));
+			// Now restore linkwiz's link to the editor.
+			dw_linkwiz.textArea = $('#wiki__text');
 		}, 0);
 
 		// reset change memory var on submit
