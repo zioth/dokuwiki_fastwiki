@@ -209,9 +209,12 @@ var plugin_fastwiki = (function($) {
 		while (target.length > 0 && !(target.hasClass('sectionedit' + nr) || target.find('.sectionedit' + nr).length)) {
 			target = target.prev();
 
+			// Commented out due to https://github.com/zioth/dokuwiki_fastwiki/issues/44
+			// Not sure why this was ever here (maybe I should comment my code better!)
+			//if (target.hasClass('section_highlight'))
+			//	pieces = pieces.add(target.children());
+
 			// If it's already highlighted, get all children.
-			if (target.hasClass('section_highlight'))
-				pieces = pieces.add(target.children());
 			pieces = pieces.add(target);
 		}
 		return pieces;
