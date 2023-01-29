@@ -216,7 +216,7 @@ var plugin_fastwiki = (function($) {
 				pieces = pieces.add(target.children());
 			else
 				pieces = pieces.add(target);
-			
+
 		}
 		return pieces;
 	}
@@ -331,7 +331,7 @@ var plugin_fastwiki = (function($) {
 			// Instead, calculate based on the button.
 			dw_linkwiz.init($('[aria-controls="link__wiz"]'));
 			// Now restore linkwiz's link to the editor.
-			dw_linkwiz.textArea = $('#wiki__text');
+			dw_linkwiz.textArea = $('#wiki__text')[0];
 		}, 0);
 
 		// reset change memory var on submit
