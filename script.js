@@ -209,13 +209,14 @@ var plugin_fastwiki = (function($) {
 		while (target.length > 0 && !(target.hasClass('sectionedit' + nr) || target.find('.sectionedit' + nr).length)) {
 			target = target.prev();
 
-			// Commented out due to https://github.com/zioth/dokuwiki_fastwiki/issues/44
-			// Not sure why this was ever here (maybe I should comment my code better!)
-			//if (target.hasClass('section_highlight'))
-			//	pieces = pieces.add(target.children());
+			// section_highlight is a temporary div that wraps around the text when your cursor is
+			// over the edit icon. Since this div will go away when edit starts, you don't want to
+			// keep the div itself. Instead, grab all of its children.
+			if (target.hasClass('section_highlight'))
+				pieces = pieces.add(target.children());
+			else
+				pieces = pieces.add(target);
 
-			// If it's already highlighted, get all children.
-			pieces = pieces.add(target);
 		}
 		return pieces;
 	}
